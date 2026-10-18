@@ -753,6 +753,38 @@ setInterval(() => {
   }
 }, 60000);
 
+// ── 서비스워커 + iOS 설치 안내 ──────────────────────────────
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* 무시 */ });
+  });
+}
+
+// iOS는 설치를 먼저 권하지 않는다. 직접 안내해야 홈 화면에 올라간다.
+function maybeShowInstallHint() {
+  const slot = document.getElementById('install-hint');
+  if (!slot) return;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (standalone || !isIOS || store.get('installHintDismissed', false)) return;
+
+  slot.innerHTML = `
+    <div class="banner">
+      <div>
+        <b>홈 화면에 추가하세요</b><br>
+        공유 버튼 → <b>홈 화면에 추가</b>. 그래야 매일 눈에 띄고 오프라인에서도 열립니다.
+      </div>
+      <button type="button" id="dismissHint" aria-label="닫기">×</button>
+    </div>
+  `;
+  slot.querySelector('#dismissHint').addEventListener('click', () => {
+    store.set('installHintDismissed', true);
+    slot.innerHTML = '';
+  });
+}
+
 // ── 부팅 ────────────────────────────────────────────────────
 document.querySelectorAll('.tabbar button').forEach((b) => {
   b.addEventListener('click', () => activateTab(b.dataset.tab));
@@ -760,6 +792,8 @@ document.querySelectorAll('.tabbar button').forEach((b) => {
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
 absorbStepsParam();
+maybeShowInstallHint();
+registerServiceWorker();
 renderToday();
 activateTab(store.get('lastTab', 'today'));
 
