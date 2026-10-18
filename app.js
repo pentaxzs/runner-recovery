@@ -569,13 +569,20 @@ function renderLog() {
     ${renderWeightCard()}
     <div class="card">
       <h3>걸음 수</h3>
-      ${renderStepBars(steps) || '<div class="empty">걸음 수 기록이 없습니다.<br>설정에서 단축어를 연결하면 자동으로 쌓입니다.</div>'}
+      ${renderStepBars(steps) || `<div class="empty">아직 기록이 없습니다.<br>
+        단축어로 복사해두고 붙여넣거나, 직접 입력하세요.</div>`}
+      <button class="btn btn-sm" id="logStepsBtn" type="button" style="width:100%;margin-top:10px">
+        오늘 걸음 수 입력
+      </button>
     </div>
     <div class="card">
       <h3>세션 기록</h3>
       <div id="logList" style="margin-top:4px"></div>
     </div>
   `;
+
+  const stepsBtn2 = root.querySelector('#logStepsBtn');
+  if (stepsBtn2) stepsBtn2.addEventListener('click', openStepsModal);
 
   const wSave = root.querySelector('#wSave');
   if (wSave) {
@@ -1004,6 +1011,7 @@ function openStepsModal() {
       stepsError = null;
       closeModal();
       renderToday();
+      if (!document.getElementById('tab-log').classList.contains('hidden')) renderLog();
     });
   }, {
     footer: `
