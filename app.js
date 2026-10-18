@@ -333,19 +333,22 @@ function openSettings() {
       <div class="block warn">
         <div class="bt">이름이 비슷한 동작에 주의</div>
         <div class="muted">
-          <b>건강 샘플 기록</b>은 건강 앱에 값을 <b>써넣는</b> 동작입니다.
-          읽어오는 건 <b>건강 샘플 가져오기</b>입니다.
+          <b>건강 샘플 기록</b>은 건강 앱에 값을 <b>써넣습니다</b>. 읽어오는 건
+          <b>건강 샘플 찾기</b>(영문 <i>Find Health Samples</i>)입니다.
+          검색창에 "건강"을 치고 <b>필터 / 정렬 기준 / 제한</b> 세 줄이 붙은 동작을 고르세요.
         </div>
       </div>
       <ol class="howto">
         <li>단축어 앱 → 새 단축어 만들기</li>
-        <li><b>건강 샘플 가져오기</b> 추가
-          <br>· 샘플 유형 <b>걸음 수</b>
+        <li><b>건강 샘플 찾기</b> 추가
+          <br>· 유형 <b>걸음 수</b>
           <br>· 필터 추가 → 시작 날짜 → <b>오늘</b>
           <br>· 제한 <b>끄기</b></li>
-        <li><b>통계 계산</b> 추가 → 연산 <b>합계</b></li>
+        <li><b>통계 계산</b> 추가 → 연산 <b>합계</b>
+          <br><span class="muted">합계가 샘플을 못 받으면 그 앞에
+          <b>건강 샘플 세부사항 가져오기</b>를 넣고 세부사항을 <b>값</b>으로 지정하세요.</span></li>
         <li><b>URL 열기</b> 추가 → 아래 주소를 직접 입력하고,
-          <code>steps=</code> 뒤에 3단계의 <b>합계 변수</b>를 끼워넣기</li>
+          <code>steps=</code> 뒤에 합계 변수를 끼워넣기</li>
         <li>단축어 이름을 정하고 <b>홈 화면에 추가</b></li>
       </ol>
       <code class="url">https://runner-recovery.vercel.app/?steps=</code>
