@@ -849,3 +849,11 @@ body.modal-open { overflow: hidden; }
   font-size: 13px;
   border-bottom: 1px dashed var(--brand);
 }
+
+.streak-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+}

@@ -707,9 +707,13 @@ export function renderToday() {
   } else if (day !== SATURDAY && day !== SUNDAY) {
     doneLabel = COMMUTE_WALK_LABEL;
   }
+  const essDone = ESSENTIAL_IDS.filter((id) => todayChecks.includes(id)).length;
+  const essTotal = ESSENTIAL_IDS.length;
   parts.push(`
     <div class="topstats">
       <div class="streak">🔥 ${streak}일째</div>
+      ${essDone < essTotal && day !== SATURDAY
+        ? `<span class="streak-hint">오늘 필수 ${essDone}/${essTotal}</span>` : ''}
       <button class="done-btn" id="stepsBtn" type="button">
         ${doneLabel ? `<span class="done">${escapeHtml(doneLabel)} ✓</span>`
                     : '<span class="done-add">걸음 수 입력</span>'}
@@ -743,7 +747,7 @@ export function renderToday() {
       <div class="card hero rest">
         <div class="label">오늘의 한 가지</div>
         <div class="title">오늘은 쉬는 날입니다</div>
-        <div class="meta">회복도 프로그램의 일부입니다. 연속 기록은 토요일을 세지 않습니다.</div>
+        <div class="meta">회복도 프로그램의 일부입니다. 토요일은 연속 기록에서 건너뜁니다 — 쉬어도 안 끊깁니다.</div>
       </div>
     `);
   } else if (runToday) {
@@ -793,7 +797,16 @@ export function renderToday() {
       </details>
     `);
   } else {
-    parts.push(`<div class="card"><h3>필수</h3><div style="margin-top:6px">${essentialRows}</div></div>`);
+    parts.push(`
+      <div class="card">
+        <h3>필수 <span class="muted" style="font-weight:600">· ${essDone}/${essTotal}</span></h3>
+        <p class="muted" style="margin:4px 0 0;font-size:12px">
+          ${essDone === essTotal
+            ? '오늘치 완료. 연속 기록이 올라갔습니다.'
+            : '이 둘을 다 체크한 날만 연속 기록에 들어갑니다. 러닝·식사·활동은 세지 않습니다.'}
+        </p>
+        <div style="margin-top:6px">${essentialRows}</div>
+      </div>`);
   }
 
   // 4. 자투리 미션 3개
