@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>러닝 회복 프로그램 트래커</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          boxShadow: { soft: '0 10px 30px rgba(15,23,42,0.08)' },
+          colors: { brand: { 50:'#eff6ff', 100:'#dbeafe', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8' } }
+        }
+      }
+    }
+  </script>
+  <style>
+    html, body { -webkit-tap-highlight-color: transparent; }
+    .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 20px); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div class="max-w-md mx-auto min-h-screen safe-bottom">
+    <header class="sticky top-0 z-30 backdrop-blur bg-slate-50/90 border-b border-slate-200">
+      <div class="px-4 pt-4 pb-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h1 class="text-2xl font-extrabold tracking-tight">러닝 회복 프로그램</h1>
+            <p class="mt-1 text-sm text-slate-500">마라톤 8주 복귀 프로그램 · 주중/주말 체크 + 운동 가이드</p>
+          </div>
+          <button id="openSettingsBtn" class="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-soft">설정</button>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          <div class="rounded-2xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="text-xs font-semibold text-slate-500">오늘 완료</div>
+            <div class="mt-2 text-3xl font-black tracking-tight" id="todayDone">0/0</div>
+          </div>
+          <div class="rounded-2xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="text-xs font-semibold text-slate-500">이번 주 완료율</div>
+            <div class="mt-2 text-3xl font-black tracking-tight text-brand-600" id="weekPercent">0%</div>
+          </div>
+        </div>
+
+        <div class="mt-3 rounded-2xl bg-white p-4 shadow-soft border border-slate-200">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-bold">주간 진행률</div>
+            <div class="text-sm font-extrabold text-brand-600" id="progressText">0%</div>
+          </div>
+          <div class="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-200">
+            <div id="progressBar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-sky-400 transition-all duration-300"></div>
+          </div>
+          <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
+            <span id="weekLabel">이번 주</span>
+            <span id="weekDoneText">0 / 0 완료</span>
+          </div>
+        </div>
+
+        <div class="mt-3 grid grid-cols-4 gap-1 rounded-2xl bg-slate-200 p-1">
+          <button data-tab="weekday" class="tab-btn rounded-xl px-2 py-3 text-xs font-extrabold text-white bg-brand-600 shadow-soft">주중</button>
+          <button data-tab="weekend" class="tab-btn rounded-xl px-2 py-3 text-xs font-extrabold text-slate-600">주말</button>
+          <button data-tab="guide" class="tab-btn rounded-xl px-2 py-3 text-xs font-extrabold text-slate-600">운동 가이드</button>
+          <button data-tab="plan" class="tab-btn rounded-xl px-2 py-3 text-xs font-extrabold text-slate-600">8주 플랜</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="px-4 py-4 space-y-4">
+      <section id="weekday" class="tab-section space-y-4">
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-extrabold tracking-tight">주중 루틴</h2>
+              <p class="mt-1 text-sm text-slate-500">아침은 실행, 밤은 회복·강화 중심입니다.</p>
+            </div>
+            <div class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">월–금</div>
+          </div>
+
+          <div class="mt-4 space-y-3">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-base font-extrabold">아침 루틴</div>
+                <div class="text-xs font-bold text-slate-500">06:30–07:00</div>
+              </div>
+              <div class="mt-3 space-y-3">
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">워밍업 5분</span><br><span class="text-slate-500">발목 돌리기, 종아리 스트레칭, 고관절 열기</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">통증 없는 범위 러닝 or 빠른 걷기</span><br><span class="text-slate-500">초기 2km 이내, 통증이 올라오면 즉시 중단</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">쿨다운 3분</span><br><span class="text-slate-500">걷기 + 허벅지 외측 당김/무릎 상태 확인</span></span></label>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-base font-extrabold">밤 루틴</div>
+                <div class="text-xs font-bold text-slate-500">22:00–22:30</div>
+              </div>
+              <div class="mt-3 space-y-3">
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">중둔근 강화</span><br><span class="text-slate-500">클램셸 15회×3 / 밴드 사이드워킹 10m×3</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">힙 브리지</span><br><span class="text-slate-500">15회×2~3세트, 골반 흔들림 없이</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">폼롤러/스트레칭</span><br><span class="text-slate-500">허벅지 바깥·엉덩이·종아리 각 1~2분</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">상태 기록</span><br><span class="text-slate-500">통증 시작 거리, 계단 통증, 골반 통증 정도 메모</span></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <h3 class="text-lg font-extrabold tracking-tight">통증 로그</h3>
+          <p class="mt-1 text-sm text-slate-500">오늘 상태를 짧게 남기면 다음 주 거리 조정에 도움이 됩니다.</p>
+          <div class="mt-4 space-y-3">
+            <div>
+              <label class="text-sm font-bold">통증 시작 거리 (km)</label>
+              <input id="painDistance" type="number" step="0.1" min="0" placeholder="예: 2.8" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+            </div>
+            <div>
+              <label class="text-sm font-bold">오늘 통증 강도 (0~10)</label>
+              <input id="painScore" type="range" min="0" max="10" value="0" class="mt-2 w-full accent-blue-600" />
+              <div class="mt-1 text-sm font-semibold text-brand-600"><span id="painScoreValue">0</span> / 10</div>
+            </div>
+            <div>
+              <label class="text-sm font-bold">오늘 메모</label>
+              <textarea id="dailyMemo" rows="4" placeholder="예: 2.5km부터 오른 무릎 바깥쪽 당김, 계단은 약간 불편" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white"></textarea>
+            </div>
+            <button id="saveDailyLogBtn" class="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-extrabold text-white shadow-soft">오늘 로그 저장</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="weekend" class="tab-section hidden space-y-4">
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xl font-extrabold tracking-tight">주말 루틴</h2>
+              <p class="mt-1 text-sm text-slate-500">골프 연습을 하되 회복 루틴을 반드시 붙입니다.</p>
+            </div>
+            <div class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">토–일</div>
+          </div>
+
+          <div class="mt-4 space-y-3">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="text-base font-extrabold">토요일</div>
+              <div class="mt-3 space-y-3">
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">골프 전 준비운동</span><br><span class="text-slate-500">발목·햄스트링·고관절 5분</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">골프 후 걷기 10분</span><br><span class="text-slate-500">하체 긴장 서서히 내리기</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">밤 회복 루틴</span><br><span class="text-slate-500">폼롤러 + 엉덩이 + 종아리 스트레칭</span></span></label>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="text-base font-extrabold">일요일</div>
+              <div class="mt-3 space-y-3">
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">20~30분 걷기</span><br><span class="text-slate-500">통증 없으면 가볍게, 아프면 더 짧게</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">중둔근 강화 보충</span><br><span class="text-slate-500">클램셸 15회×2 / 브리지 15회×2</span></span></label>
+                <label class="flex gap-3 items-start"><input type="checkbox" class="todo h-5 w-5 mt-0.5 rounded-md accent-blue-600" /><span class="text-sm leading-6"><span class="font-semibold">다음 주 거리 결정</span><br><span class="text-slate-500">통증이 줄었으면 +0.5~1km, 아니면 유지</span></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <h3 class="text-lg font-extrabold tracking-tight">이번 주 저장 로그</h3>
+          <div id="recentLogs" class="mt-3 space-y-3 text-sm"></div>
+        </div>
+      </section>
+
+            <section id="guide" class="tab-section hidden space-y-4">
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-xl font-extrabold tracking-tight">운동 가이드</h2>
+              <p class="mt-1 text-sm text-slate-500">생소한 동작을 빠르게 이해할 수 있게 핵심만 정리했습니다.</p>
+            </div>
+            <div class="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">폼 우선</div>
+          </div>
+        </div>
+
+        <div class="space-y-3" id="exerciseGuideList">
+          <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="grid grid-cols-[88px_1fr] gap-4 items-start">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                <svg viewBox="0 0 120 120" class="h-20 w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="35" cy="35" r="12" stroke="#2563eb" stroke-width="6"/>
+                  <path d="M35 47 L55 62 L78 62" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M55 62 L42 86" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M55 62 L82 84" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M78 62 C94 52,102 52,108 60" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-base font-extrabold">클램셸</h3>
+                  <span class="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700">중둔근</span>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-slate-700">옆으로 누워 무릎을 살짝 굽힌 뒤, 발은 붙인 채 위쪽 무릎만 조개껍질처럼 벌립니다. 골반이 뒤로 넘어가지 않게 유지하는 것이 핵심입니다.</p>
+                <div class="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
+                  <div><span class="font-bold text-slate-800">느낌 포인트</span> 엉덩이 옆이 타는 느낌</div>
+                  <div class="mt-1"><span class="font-bold text-slate-800">주의</span> 허리로 비틀지 말고 천천히</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="grid grid-cols-[88px_1fr] gap-4 items-start">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                <svg viewBox="0 0 120 120" class="h-20 w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="50" cy="24" r="10" stroke="#2563eb" stroke-width="6"/>
+                  <path d="M50 34 L50 68" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M50 44 L28 58" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M50 44 L72 58" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M50 68 L32 96" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M50 68 L72 96" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M26 92 C42 84,60 84,78 92" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-base font-extrabold">밴드 사이드워킹</h3>
+                  <span class="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700">골반 안정</span>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-slate-700">무릎 또는 발목에 밴드를 걸고, 무릎을 살짝 굽힌 자세로 옆으로 천천히 걷습니다. 상체가 흔들리지 않게 하고, 발을 끌지 않는 것이 중요합니다.</p>
+                <div class="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
+                  <div><span class="font-bold text-slate-800">느낌 포인트</span> 엉덩이 옆과 허벅지 바깥</div>
+                  <div class="mt-1"><span class="font-bold text-slate-800">주의</span> 무릎이 안쪽으로 무너지지 않기</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="grid grid-cols-[88px_1fr] gap-4 items-start">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                <svg viewBox="0 0 120 120" class="h-20 w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="38" cy="38" r="10" stroke="#2563eb" stroke-width="6"/>
+                  <path d="M38 48 L56 62 L82 62" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M56 62 L38 84" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M82 62 L96 46" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M82 62 L96 84" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M22 88 H102" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-base font-extrabold">힙 브리지</h3>
+                  <span class="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700">둔근·햄스트링</span>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-slate-700">누운 상태에서 무릎을 세우고 엉덩이를 들어 올립니다. 갈비뼈가 과하게 들리지 않게 하고, 엉덩이에 힘을 주어 몸통과 허벅지가 일직선이 되면 좋습니다.</p>
+                <div class="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
+                  <div><span class="font-bold text-slate-800">느낌 포인트</span> 허리보다 엉덩이 힘</div>
+                  <div class="mt-1"><span class="font-bold text-slate-800">주의</span> 허리를 과하게 꺾지 않기</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+            <div class="grid grid-cols-[88px_1fr] gap-4 items-start">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                <svg viewBox="0 0 120 120" class="h-20 w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="60" cy="26" r="10" stroke="#2563eb" stroke-width="6"/>
+                  <path d="M60 36 L60 74" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M60 48 L38 58" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M60 48 L82 58" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M60 74 L44 100" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M60 74 L78 100" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                  <path d="M18 94 H102" stroke="#16a34a" stroke-width="6" stroke-dasharray="8 8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center justify-between gap-3">
+                  <h3 class="text-base font-extrabold">폼롤러 / 스트레칭</h3>
+                  <span class="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700">회복</span>
+                </div>
+                <p class="mt-2 text-sm leading-6 text-slate-700">허벅지 바깥, 엉덩이, 종아리처럼 뭉치기 쉬운 부위를 천천히 풀어줍니다. 강하게 누르기보다 통증 10점 기준 5~6 정도 느낌에서 멈추는 편이 좋습니다.</p>
+                <div class="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
+                  <div><span class="font-bold text-slate-800">느낌 포인트</span> 숨을 참지 않고 천천히 호흡</div>
+                  <div class="mt-1"><span class="font-bold text-slate-800">주의</span> 무릎 관절 위를 직접 세게 누르지 않기</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+<section id="plan" class="tab-section hidden space-y-4">
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <h2 class="text-xl font-extrabold tracking-tight">8주 복귀 플랜</h2>
+          <p class="mt-1 text-sm text-slate-500">마라톤까지 남은 8주를 기준으로, 회복 우선 흐름으로 구성했습니다.</p>
+          <div id="planList" class="mt-4 space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <h3 class="text-lg font-extrabold tracking-tight">복귀 체크 기준</h3>
+          <div class="mt-3 space-y-3 text-sm">
+            <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">걷기 30분 후 통증이 <span class="font-bold text-brand-600">0~1</span> 이고, 계단 내려갈 때 찌릿한 통증이 거의 없어야 다음 거리로 올립니다.</div>
+            <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">러닝 중 통증이 올라오는 지점을 <span class="font-bold text-brand-600">억지로 넘기지 않습니다.</span></div>
+            <div class="rounded-2xl bg-slate-50 border border-slate-200 p-4">골프 다음 날 통증이 커지면 그 주 러닝 거리는 <span class="font-bold text-brand-600">늘리지 않고 유지</span>합니다.</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button id="resetTodayBtn" class="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 shadow-soft">오늘 체크 초기화</button>
+        <button id="resetWeekBtn" class="rounded-2xl bg-slate-900 px-4 py-4 text-sm font-extrabold text-white shadow-soft">이번 주 전체 초기화</button>
+      </div>
+    </main>
+  </div>
+
+  <div id="settingsModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/40"></div>
+    <div class="absolute bottom-0 left-0 right-0 mx-auto max-w-md rounded-t-3xl bg-white p-5 shadow-2xl">
+      <div class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200"></div>
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-extrabold">설정</h3>
+        <button id="closeSettingsBtn" class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600">닫기</button>
+      </div>
+      <div class="mt-4 space-y-4">
+        <div>
+          <label class="text-sm font-bold">프로그램 시작일</label>
+          <input id="programStart" type="date" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+        </div>
+        <div>
+          <label class="text-sm font-bold">레이스 목표일</label>
+          <input id="raceDate" type="date" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+        </div>
+        <div>
+          <label class="text-sm font-bold">현재 통증 없는 러닝 거리 (km)</label>
+          <input id="baseDistance" type="number" min="0" step="0.5" class="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+        </div>
+        <button id="saveSettingsBtn" class="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-extrabold text-white shadow-soft">설정 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE = { state:'runner_tracker_state_v2', settings:'runner_tracker_settings_v2', logs:'runner_tracker_logs_v2' };
+    const DEFAULT_SETTINGS = { baseDistance:2, programStart:new Date().toISOString().slice(0,10), raceDate:'2026-05-24' };
+    const weekdayTodoCount = 7;
+    const weekendTodoCount = 6;
+
+    const todayDoneEl = document.getElementById('todayDone');
+    const weekPercentEl = document.getElementById('weekPercent');
+    const progressTextEl = document.getElementById('progressText');
+    const progressBarEl = document.getElementById('progressBar');
+    const weekLabelEl = document.getElementById('weekLabel');
+    const weekDoneTextEl = document.getElementById('weekDoneText');
+    const painScoreEl = document.getElementById('painScore');
+    const painScoreValueEl = document.getElementById('painScoreValue');
+    const recentLogsEl = document.getElementById('recentLogs');
+    const planListEl = document.getElementById('planList');
+    const exerciseGuideListEl = document.getElementById('exerciseGuideList');
+
+    const EXERCISE_GUIDES = [
+      {
+        id:'clamshell',
+        title:'클램셸',
+        tags:['hip','glute','knee'],
+        badge:'중둔근',
+        summary:'옆으로 누워 무릎을 벌리는 동작으로, 골반이 흔들리지 않게 중둔근을 깨우는 데 좋습니다.',
+        target:'추천: 러닝할 때 골반이 흔들리거나 무릎이 안쪽으로 말리는 느낌이 있을 때',
+        how:['옆으로 누워 무릎을 약 90도로 굽힙니다.','발은 붙인 채 위쪽 무릎만 천천히 엽니다.','골반이 뒤로 넘어가지 않는 범위까지만 벌립니다.'],
+        mistakes:['허리를 뒤로 젖히며 골반까지 같이 열기','반동으로 무릎을 확 벌리기','엉덩이 대신 허벅지 앞쪽에 힘이 몰리기'],
+        tips:['배꼽이 정면을 보게 유지하세요.','크게 벌리기보다 천천히 버티는 것이 더 중요합니다.'],
+        youtube:'https://www.youtube.com/watch?v=t0ASA5CxgKI'
+      },
+      {
+        id:'band-side',
+        title:'밴드 사이드워킹',
+        tags:['hip','glute','knee'],
+        badge:'고관절 안정화',
+        summary:'밴드를 걸고 옆으로 걷는 운동입니다. 한 발로 버티는 순간의 골반 안정성을 키우는 데 도움이 됩니다.',
+        target:'추천: 무릎 바깥쪽이 불편하거나 착지 때 중심이 한쪽으로 무너질 때',
+        how:['밴드를 발목 또는 무릎 위에 걸고 무릎을 살짝 굽힙니다.','골반 높이를 유지한 채 옆으로 5~10걸음 이동합니다.','왕복 후에도 밴드 장력이 계속 유지되게 합니다.'],
+        mistakes:['발을 모을 때 밴드 텐션이 완전히 풀리기','상체가 좌우로 크게 흔들리기','발끝이 계속 바깥으로 돌아가기'],
+        tips:['허벅지보다 엉덩이 옆이 타는 느낌이 나야 잘 하고 있는 겁니다.','짧고 통제된 보폭이 더 좋습니다.'],
+        youtube:'https://www.youtube.com/watch?v=tUqN-hWOwY0'
+      },
+      {
+        id:'bridge',
+        title:'힙 브리지',
+        tags:['glute','hip'],
+        badge:'둔근 강화',
+        summary:'누운 자세에서 엉덩이를 들어 올리며 둔근과 햄스트링을 쓰는 기본 운동입니다.',
+        target:'추천: 골반이 쉽게 처지거나 러닝 후 허리보다 엉덩이 힘이 약하다고 느껴질 때',
+        how:['무릎을 세우고 누운 뒤 발을 골반 너비로 둡니다.','갈비뼈를 과하게 들지 말고 엉덩이를 천천히 들어 올립니다.','어깨-골반-무릎이 대각선이 되면 1초 멈춘 뒤 내려옵니다.'],
+        mistakes:['허리만 꺾어서 들어 올리기','무릎이 바깥이나 안쪽으로 벌어지기','내려올 때 힘을 툭 놓아버리기'],
+        tips:['발바닥 전체로 바닥을 누르세요.','엉덩이를 조인 뒤 내려오는 감각을 익히면 좋습니다.'],
+        youtube:'https://www.youtube.com/watch?v=PhTDzR0TpZs'
+      },
+      {
+        id:'foam',
+        title:'폼롤러 + 스트레칭',
+        tags:['recovery','knee','glute'],
+        badge:'회복',
+        summary:'종아리, 엉덩이, 허벅지 주변 긴장을 줄여 다음 러닝에서 보상 움직임이 커지지 않게 돕습니다.',
+        target:'추천: 뻐근함이 누적되거나 골프/러닝 다음 날 다리가 무겁게 느껴질 때',
+        how:['종아리와 엉덩이를 30~60초씩 천천히 굴립니다.','아픈 지점을 만나면 숨을 참지 말고 짧게 멈춥니다.','마무리로 고관절, 종아리 스트레칭을 가볍게 붙입니다.'],
+        mistakes:['IT밴드 뼈 위를 세게 오래 누르기','통증을 참아가며 과하게 롤링하기','너무 빠르게 굴려서 이완이 안 되기'],
+        tips:['강하게 하는 것보다 호흡을 길게 가져가는 것이 좋습니다.','예민한 날은 강도보다 시간을 줄이는 쪽이 안전합니다.'],
+        youtube:'https://www.youtube.com/watch?v=i9DvJa0mZQA'
+      }
+    ];
+
+    function fmtDate(date) { return new Date(date).toLocaleDateString('ko-KR', { month:'short', day:'numeric', weekday:'short' }); }
+    function getTodayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+    function getMonday(date = new Date()) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setDate(d.getDate() + diff);
+      d.setHours(0,0,0,0);
+      return d;
+    }
+    function addDays(date, days) { const d = new Date(date); d.setDate(d.getDate()+days); return d; }
+    function toDateStr(date) { return new Date(date).toISOString().slice(0,10); }
+    function getSettings() { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem(STORAGE.settings) || '{}')); }
+    function saveSettings(settings) { localStorage.setItem(STORAGE.settings, JSON.stringify(settings)); }
+    function getState() { return JSON.parse(localStorage.getItem(STORAGE.state) || '{}'); }
+    function saveState(state) { localStorage.setItem(STORAGE.state, JSON.stringify(state)); }
+    function getLogs() { return JSON.parse(localStorage.getItem(STORAGE.logs) || '[]'); }
+    function saveLogs(logs) { localStorage.setItem(STORAGE.logs, JSON.stringify(logs)); }
+    function getWeekKey(dateStr = getTodayStr()) { return toDateStr(getMonday(new Date(dateStr))); }
+    function getTodayType(date = new Date()) {
+      const day = new Date(date).getDay();
+      return day >= 1 && day <= 5 ? 'weekday' : 'weekend';
+    }
+
+    function getTodayTasksTarget(date = new Date()) {
+      return getTodayType(date) === 'weekday' ? weekdayTodoCount : weekendTodoCount;
+    }
+
+    function getTaskGroupByIndex(index) {
+      return index < weekdayTodoCount ? 'weekday' : 'weekend';
+    }
+
+    function getActiveTabByDate(date = new Date()) {
+      return getTodayType(date) === 'weekday' ? 'weekday' : 'weekend';
+    }
+
+    function renderExerciseGuides(filter = 'all') {
+      const filtered = EXERCISE_GUIDES.filter(item => filter === 'all' || item.tags.includes(filter));
+      exerciseGuideListEl.innerHTML = filtered.map(item => `
+        <div class="rounded-3xl bg-white p-4 shadow-soft border border-slate-200">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-lg font-extrabold tracking-tight">${item.title}</h3>
+                <span class="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700">${item.badge}</span>
+              </div>
+              <p class="mt-2 text-sm leading-6 text-slate-600">${item.summary}</p>
+            </div>
+            <div class="hidden sm:block shrink-0">${getExerciseIllustration(item.id)}</div>
+          </div>
+
+          <div class="mt-4 rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <div class="text-sm font-extrabold">언제 추천?</div>
+            <div class="mt-2 text-sm text-slate-700">${item.target}</div>
+          </div>
+
+          <div class="mt-4 grid gap-3 md:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 p-4">
+              <div class="text-sm font-extrabold">하는 법</div>
+              <ul class="mt-2 space-y-2 text-sm text-slate-700">${item.how.map(step => `<li>• ${step}</li>`).join('')}</ul>
+            </div>
+            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <div class="text-sm font-extrabold text-rose-700">잘못된 자세</div>
+              <ul class="mt-2 space-y-2 text-sm text-rose-700">${item.mistakes.map(step => `<li>• ${step}</li>`).join('')}</ul>
+            </div>
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div class="text-sm font-extrabold text-emerald-700">코칭 팁</div>
+              <ul class="mt-2 space-y-2 text-sm text-emerald-700">${item.tips.map(step => `<li>• ${step}</li>`).join('')}</ul>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a href="${item.youtube}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-extrabold text-white">유튜브 자세 보기</a>
+            <button class="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-700" onclick="window.scrollTo({top:0, behavior:'smooth'})">맨 위로</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getExerciseIllustration(type) {
+      const common = 'width="84" height="84" viewBox="0 0 84 84" fill="none" xmlns="http://www.w3.org/2000/svg"';
+      if (type === 'clamshell') return `<svg ${common}><rect x="6" y="6" width="72" height="72" rx="20" fill="#EEF2FF"/><circle cx="27" cy="28" r="8" fill="#1E293B"/><path d="M34 34L48 44L56 58" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M32 38L47 50" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/><path d="M47 50L61 46" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/></svg>`;
+      if (type === 'band-side') return `<svg ${common}><rect x="6" y="6" width="72" height="72" rx="20" fill="#ECFDF5"/><circle cx="42" cy="20" r="8" fill="#1E293B"/><path d="M42 28V48" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M42 34L28 44" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M42 34L56 44" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M42 48L30 64" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/><path d="M42 48L57 61" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/><path d="M28 64C37 60 50 58 60 61" stroke="#059669" stroke-width="4" stroke-linecap="round"/></svg>`;
+      if (type === 'bridge') return `<svg ${common}><rect x="6" y="6" width="72" height="72" rx="20" fill="#EFF6FF"/><circle cx="22" cy="49" r="7" fill="#1E293B"/><path d="M28 48L44 39L58 45L66 57" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/><path d="M58 45L58 60" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M66 57L71 67" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/></svg>`;
+      return `<svg ${common}><rect x="6" y="6" width="72" height="72" rx="20" fill="#FFF7ED"/><rect x="16" y="48" width="18" height="18" rx="4" fill="#FB923C"/><circle cx="52" cy="28" r="9" fill="#1E293B"/><path d="M50 38L40 49L35 63" stroke="#1E293B" stroke-width="5" stroke-linecap="round"/><path d="M40 49L28 56" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/><path d="M41 48L54 58" stroke="#2563EB" stroke-width="5" stroke-linecap="round"/></svg>`;
+    }
+
+    function bindGuideFilters() {
+      document.querySelectorAll('.guide-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const filter = btn.dataset.filter;
+          document.querySelectorAll('.guide-filter').forEach(el => {
+            el.className = 'guide-filter rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700';
+          });
+          btn.className = 'guide-filter rounded-full bg-slate-900 px-3 py-2 text-xs font-bold text-white';
+          renderExerciseGuides(filter);
+        });
+      });
+    }
+
+    function renderPlan() {
+      const plan = [
+        { week:1, shortRun:'2.0km', midRun:'2.5km', longRun:'3.0km', strength:'클램셸 + 힙 브리지 중심', note:'회복 적응 시작. 통증 없는 거리 파악이 우선입니다.' },
+        { week:2, shortRun:'2.5km', midRun:'3.0km', longRun:'4.0km', strength:'밴드 사이드워킹 추가', note:'골반 안정화에 집중하고 러닝 후 통증 반응을 기록합니다.' },
+        { week:3, shortRun:'3.0km', midRun:'4.0km', longRun:'5.0km', strength:'중둔근 + 폼롤러 루틴 고정', note:'5km 복귀 구간. 통증이 올라오면 거리 유지가 맞습니다.' },
+        { week:4, shortRun:'3.5km', midRun:'5.0km', longRun:'6.0km', strength:'한 발 버티기와 둔근 안정화', note:'조금씩 빌드업. 골프 다음 날 반응도 같이 체크합니다.' },
+        { week:5, shortRun:'4.0km', midRun:'6.0km', longRun:'7.0km', strength:'브리지 버티기 시간 늘리기', note:'지구력 전환 구간. 피곤함보다 통증 양상을 기준으로 판단합니다.' },
+        { week:6, shortRun:'4.5km', midRun:'6.5km', longRun:'8.0km', strength:'회복 루틴 누락 금지', note:'가장 중요한 주. 무리하지 말고 long run 다음 날 상태를 기록하세요.' },
+        { week:7, shortRun:'3.5km', midRun:'5.0km', longRun:'6.0km', strength:'강화는 유지, 러닝은 살짝 감량', note:'테이퍼 시작. 통증과 피로를 낮추는 주입니다.' },
+        { week:8, shortRun:'2.0~3.0km', midRun:'가볍게 조깅', longRun:'레이스 주간', strength:'가벼운 활성화만', note:'마라톤 주간. 새로운 운동은 넣지 말고 몸을 가볍게 유지합니다.' }
+      ];
+      planListEl.innerHTML = plan.map(item => `
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm font-extrabold">Week ${item.week}</div>
+            <div class="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">${item.note}</div>
+          </div>
+          <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-2xl bg-white p-3 border border-slate-200"><div class="text-[11px] font-bold text-slate-500">짧은 러닝</div><div class="mt-1 text-sm font-extrabold">${item.shortRun}</div></div>
+            <div class="rounded-2xl bg-white p-3 border border-slate-200"><div class="text-[11px] font-bold text-slate-500">보통 러닝</div><div class="mt-1 text-sm font-extrabold">${item.midRun}</div></div>
+            <div class="rounded-2xl bg-white p-3 border border-slate-200"><div class="text-[11px] font-bold text-slate-500">롱런/핵심</div><div class="mt-1 text-sm font-extrabold">${item.longRun}</div></div>
+          </div>
+          <div class="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><span class="font-extrabold">보강 포인트:</span> ${item.strength}</div>
+        </div>
+      `).join('');
+    }
+
+    function bindTodos() {
+      const today = getTodayStr();
+      const state = getState();
+      document.querySelectorAll('.todo').forEach((el, index) => {
+        const group = getTaskGroupByIndex(index);
+        const key = `${today}__${index}`;
+        el.dataset.key = key;
+        el.dataset.group = group;
+        el.checked = !!state[key];
+        el.onchange = () => {
+          const latest = getState();
+          latest[key] = el.checked;
+          saveState(latest);
+          updateStats();
+        };
+      });
+    }
+
+    function updateStats() {
+      const state = getState();
+      const today = getTodayStr();
+      const todayType = getTodayType(today);
+      const monday = getWeekKey(today);
+      const weekStart = new Date(monday);
+      const weekDates = Array.from({length:7}, (_, i) => toDateStr(addDays(weekStart, i)));
+
+      let todayDone = 0;
+      let weekDone = 0;
+      Object.keys(state).forEach(key => {
+        if (!state[key]) return;
+        const [dateStr, indexStr] = key.split('__');
+        const group = getTaskGroupByIndex(Number(indexStr));
+        if (dateStr === today && group === todayType) todayDone++;
+        if (weekDates.includes(dateStr)) weekDone++;
+      });
+
+      const weekTarget = (weekdayTodoCount * 5) + (weekendTodoCount * 2);
+      const todayTarget = getTodayTasksTarget(today);
+      const percent = weekTarget === 0 ? 0 : Math.round((weekDone / weekTarget) * 100);
+
+      todayDoneEl.textContent = `${todayDone}/${todayTarget}`;
+      weekPercentEl.textContent = `${percent}%`;
+      progressTextEl.textContent = `${percent}%`;
+      progressBarEl.style.width = `${percent}%`;
+      weekDoneTextEl.textContent = `${weekDone} / ${weekTarget} 완료`;
+      weekLabelEl.textContent = `${fmtDate(weekStart)} 시작 주`;
+    }
+
+    function saveDailyLog() {
+      const today = getTodayStr();
+      const logs = getLogs();
+      const payload = {
+        date: today,
+        painDistance: document.getElementById('painDistance').value || '',
+        painScore: document.getElementById('painScore').value || '0',
+        memo: document.getElementById('dailyMemo').value || ''
+      };
+      const idx = logs.findIndex(l => l.date === today);
+      if (idx >= 0) logs[idx] = payload; else logs.unshift(payload);
+      saveLogs(logs.slice(0,14));
+      renderLogs();
+      alert('오늘 로그를 저장했습니다.');
+    }
+
+    function renderLogs() {
+      const monday = getMonday();
+      const sunday = addDays(monday, 6);
+      const logs = getLogs().filter(log => {
+        const d = new Date(log.date);
+        return d >= monday && d <= sunday;
+      });
+      if (!logs.length) {
+        recentLogsEl.innerHTML = '<div class="rounded-2xl bg-slate-50 border border-slate-200 p-4 text-slate-500">이번 주 저장된 로그가 아직 없습니다.</div>';
+        return;
+      }
+      recentLogsEl.innerHTML = logs.map(log => `
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-extrabold">${fmtDate(log.date)}</div>
+            <div class="text-xs font-bold text-brand-600">통증 ${log.painScore}/10</div>
+          </div>
+          <div class="mt-2 text-sm text-slate-600">통증 시작 거리: ${log.painDistance || '-'} km</div>
+          <div class="mt-2 text-sm text-slate-700 whitespace-pre-wrap">${log.memo || '메모 없음'}</div>
+        </div>
+      `).join('');
+    }
+
+    function loadTodayLog() {
+      const today = getTodayStr();
+      const log = getLogs().find(l => l.date === today);
+      if (!log) return;
+      document.getElementById('painDistance').value = log.painDistance || '';
+      document.getElementById('painScore').value = log.painScore || '0';
+      painScoreValueEl.textContent = log.painScore || '0';
+      document.getElementById('dailyMemo').value = log.memo || '';
+    }
+
+    function resetToday() {
+      const today = getTodayStr();
+      const state = getState();
+      Object.keys(state).forEach(key => { if (key.startsWith(today + '__')) delete state[key]; });
+      saveState(state);
+      document.querySelectorAll('.todo').forEach(el => { if (el.dataset.key && el.dataset.key.startsWith(today + '__')) el.checked = false; });
+      updateStats();
+    }
+
+    function resetWeek() {
+      const monday = getWeekKey();
+      const weekStart = new Date(monday);
+      const weekDates = Array.from({length:7}, (_, i) => toDateStr(addDays(weekStart, i)));
+      const state = getState();
+      Object.keys(state).forEach(key => {
+        const dateStr = key.split('__')[0];
+        if (weekDates.includes(dateStr)) delete state[key];
+      });
+      saveState(state);
+      bindTodos();
+      updateStats();
+    }
+
+    function initSettingsUI() {
+      const settings = getSettings();
+      document.getElementById('programStart').value = settings.programStart;
+      document.getElementById('raceDate').value = settings.raceDate;
+      document.getElementById('baseDistance').value = settings.baseDistance;
+    }
+
+    function activateTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        const active = btn.dataset.tab === tabName;
+        btn.className = 'tab-btn rounded-xl px-3 py-3 text-sm font-extrabold ' + (active ? 'text-white bg-brand-600 shadow-soft' : 'text-slate-600');
+      });
+      document.querySelectorAll('.tab-section').forEach(section => section.classList.toggle('hidden', section.id !== tabName));
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => activateTab(btn.dataset.tab)));
+    painScoreEl.addEventListener('input', e => { painScoreValueEl.textContent = e.target.value; });
+    document.getElementById('saveDailyLogBtn').addEventListener('click', saveDailyLog);
+    document.getElementById('resetTodayBtn').addEventListener('click', () => { if (confirm('오늘 체크를 초기화할까요?')) resetToday(); });
+    document.getElementById('resetWeekBtn').addEventListener('click', () => { if (confirm('이번 주 체크를 모두 초기화할까요?')) resetWeek(); });
+    document.getElementById('openSettingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.remove('hidden'));
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => document.getElementById('settingsModal').classList.add('hidden'));
+    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+      const settings = {
+        programStart: document.getElementById('programStart').value || DEFAULT_SETTINGS.programStart,
+        raceDate: document.getElementById('raceDate').value || DEFAULT_SETTINGS.raceDate,
+        baseDistance: Number(document.getElementById('baseDistance').value || DEFAULT_SETTINGS.baseDistance)
+      };
+      saveSettings(settings);
+      renderPlan();
+      document.getElementById('settingsModal').classList.add('hidden');
+      alert('설정을 저장했습니다.');
+    });
+
+    initSettingsUI();
+    bindTodos();
+    updateStats();
+    renderPlan();
+    renderExerciseGuides();
+    bindGuideFilters();
+    renderLogs();
+    loadTodayLog();
+    activateTab(getActiveTabByDate());
+  </script>
+</body>
+</html>
