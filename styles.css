@@ -785,3 +785,49 @@ body { overscroll-behavior-y: contain; }
   font-size: 13px;
 }
 .dose-tempo .dk { margin-right: 6px; }
+
+/* ── 전체화면 모달 ──────────────────────────────────── */
+body.modal-open { overflow: hidden; }
+
+.modal-backdrop.full {
+  background: var(--bg);
+  align-items: stretch;
+}
+.modal.full {
+  max-height: none;
+  height: 100%;
+  overflow: hidden;      /* 스크롤은 .modal-body가 맡는다 */
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.modal.full .modal-head {
+  flex: none;
+  padding: calc(env(safe-area-inset-top) + 16px) var(--gap) 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.modal.full .modal-head h2 { margin: 0; font-size: 19px; font-weight: 800; }
+.modal.full .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--gap);
+  padding-bottom: 8px;
+}
+.modal.full .modal-foot {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 12px var(--gap);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.modal.full .modal-foot .btn { flex: 1; }
+
+/* 바텀시트 모달(러닝 기록)은 기존 동작 유지 */
+.modal:not(.full) .modal-body { padding: 0; }
+.modal:not(.full) .modal-foot { display: flex; gap: 8px; margin-top: 4px; }

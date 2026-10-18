@@ -301,8 +301,6 @@ function openSettings() {
   let level = settings.runLevel;
 
   openModal(`
-    <h2>설정</h2>
-
     <div class="card">
       <h3>주중 러닝 요일</h3>
       <p class="muted" style="margin:4px 0 10px">일요일은 항상 메인 세션입니다.</p>
@@ -347,10 +345,6 @@ function openSettings() {
       <button class="btn btn-danger btn-sm" id="stReset" type="button" style="width:100%">모든 데이터 초기화</button>
     </div>
 
-    <div class="btn-row">
-      <button class="btn btn-ghost" id="stClose" type="button">닫기</button>
-      <button class="btn btn-primary" id="stSave" type="button">저장</button>
-    </div>
   `, (modal) => {
     const warn = modal.querySelector('#stWarn');
     const saveBtn = modal.querySelector('#stSave');
@@ -400,7 +394,14 @@ function openSettings() {
       store.set('settings', { ...getSettings(), runDays: days, runLevel: level });
       closeModal();
       renderToday();
+      renderGuide(); // 단계가 바뀌면 처방도 같이 바뀐다
     });
+  }, {
+    fullscreen: true,
+    title: '설정',
+    footer: `
+      <button class="btn btn-ghost" id="stClose" type="button">닫기</button>
+      <button class="btn btn-primary" id="stSave" type="button">저장</button>`,
   });
 }
 
@@ -1011,16 +1012,34 @@ function showLevelToast(decided) {
 }
 
 // ── 모달 공통 ───────────────────────────────────────────────
-function openModal(html, wire) {
+// opts.fullscreen: 딤 없이 화면을 채운다. opts.footer: 스크롤과 무관하게 하단 고정.
+// opts.title: 전체화면일 때 상단에 남는 제목.
+function openModal(html, wire, opts = {}) {
   const root = document.getElementById('modal-root');
-  root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
-  const backdrop = root.querySelector('.modal-backdrop');
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+  const full = Boolean(opts.fullscreen);
+
+  root.innerHTML = `
+    <div class="modal-backdrop${full ? ' full' : ''}">
+      <div class="modal${full ? ' full' : ''}" role="dialog" aria-modal="true">
+        ${full && opts.title ? `<div class="modal-head"><h2>${escapeHtml(opts.title)}</h2></div>` : ''}
+        <div class="modal-body">${html}</div>
+        ${opts.footer ? `<div class="modal-foot">${opts.footer}</div>` : ''}
+      </div>
+    </div>`;
+
+  // 전체화면 뒤에서 페이지가 같이 스크롤되면 어디를 만지는지 알 수 없어진다.
+  document.body.classList.add('modal-open');
+
+  if (!full) {
+    const backdrop = root.querySelector('.modal-backdrop');
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+  }
   if (wire) wire(root.querySelector('.modal'));
 }
 
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
+  document.body.classList.remove('modal-open');
 }
 
 // ── 헤더 글리프 ─────────────────────────────────────────────
