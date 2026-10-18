@@ -35,3 +35,34 @@ export function isValidDateStr(s) {
   const d = parseLocalDate(s);
   return !Number.isNaN(d.getTime()) && toDateStr(d) === s;
 }
+
+// ── 연속 기록 ────────────────────────────────────────────────
+const SATURDAY = 6;
+
+export function calcStreak(checks, essentialIds, today) {
+  const done = (dateStr) => {
+    const list = checks[dateStr];
+    return Array.isArray(list) && essentialIds.every((id) => list.includes(id));
+  };
+
+  let streak = 0;
+  let cursor = parseLocalDate(today);
+  const missAt = []; // 미완료가 발생한 "검사 순번"
+  let examined = 0;
+
+  for (let guard = 0; guard < 400; guard++) {
+    const dateStr = toDateStr(cursor);
+    if (cursor.getDay() !== SATURDAY) {
+      examined++;
+      if (done(dateStr)) {
+        streak++;
+      } else {
+        const recentMisses = missAt.filter((i) => examined - i < 7).length;
+        if (recentMisses >= 1) break; // 두 번째 미완료 → 종료
+        missAt.push(examined);        // 첫 미완료는 용서, 증가는 없음
+      }
+    }
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
