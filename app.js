@@ -134,8 +134,168 @@ function renderOnboarding(root) {
   });
 }
 
-// Task 11에서 채운다.
-function renderGuide() {}
+// ── 가이드 탭 ───────────────────────────────────────────────
+let guideFilter = 'all';
+
+function renderGuide() {
+  const root = document.getElementById('tab-guide');
+  const filters = [['all', '전체'], ['essential', '필수'], ['recommended', '권장'], ['recovery', '회복']];
+  const items = TASKS.filter((t) => guideFilter === 'all' || t.tier === guideFilter);
+
+  root.innerHTML = `
+    <div class="chips" id="guideChips">
+      ${filters.map(([k, label]) => `
+        <button type="button" data-filter="${k}" class="${guideFilter === k ? 'active' : ''}">${label}</button>
+      `).join('')}
+    </div>
+    ${items.map((t) => `
+      <details class="collapse">
+        <summary>
+          <span>${escapeHtml(t.title)}</span>
+          <span class="pill">${escapeHtml(TIER_LABELS[t.tier] || t.tier)}</span>
+        </summary>
+        <div class="body">
+          <p class="muted" style="margin:0 0 4px">${escapeHtml(t.summary)}</p>
+          <div class="block plain">
+            <div class="bt">언제 추천?</div>
+            <div class="muted">${escapeHtml(t.when)}</div>
+          </div>
+          <div class="block plain">
+            <div class="bt">하는 법</div>
+            <ol class="howto">${t.how.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ol>
+          </div>
+          <div class="block warn">
+            <div class="bt">잘못된 자세</div>
+            <ul class="bullets">${t.mistakes.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>
+          </div>
+          <div class="block ok">
+            <div class="bt">코칭 팁</div>
+            <ul class="bullets">${t.tips.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+          </div>
+          ${t.youtube ? `
+            <a class="btn" style="margin-top:12px" target="_blank" rel="noopener noreferrer"
+               href="${escapeHtml(t.youtube)}">유튜브로 자세 보기</a>` : ''}
+        </div>
+      </details>
+    `).join('')}
+  `;
+
+  root.querySelectorAll('#guideChips button').forEach((b) => {
+    b.addEventListener('click', () => { guideFilter = b.dataset.filter; renderGuide(); });
+  });
+}
+
+// ── 설정 ────────────────────────────────────────────────────
+const SHORTCUT_URL = 'https://runner-recovery.vercel.app/?steps=[걸음수]&date=[날짜]';
+
+function openSettings() {
+  const settings = getSettings();
+  let days = [...(settings.runDays || [])];
+  let level = settings.runLevel;
+
+  openModal(`
+    <h2>설정</h2>
+
+    <div class="card">
+      <h3>주중 러닝 요일</h3>
+      <p class="muted" style="margin:4px 0 10px">일요일은 항상 메인 세션입니다.</p>
+      <div class="daypick" id="stDays">
+        ${[1, 2, 3, 4, 5].map((d) => `
+          <button type="button" data-day="${d}" class="${days.includes(d) ? 'on' : ''}">${DAY_NAMES[d]}</button>
+        `).join('')}
+      </div>
+      <div id="stWarn" class="block warn hidden">
+        <div class="bt">연속 이틀은 피해주세요</div>
+        <div class="muted">러닝 사이에는 하루를 비웁니다.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>현재 단계</h3>
+      <p class="muted" id="stLevelLabel" style="margin:4px 0 10px"></p>
+      <div class="btn-row">
+        <button class="btn btn-sm" id="stDown" type="button" style="flex:1">− 내리기</button>
+        <button class="btn btn-sm" id="stUp" type="button" style="flex:1">올리기 +</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>걸음 수 연동 (iOS 단축어)</h3>
+      <p class="muted" style="margin:4px 0 0">
+        웹 앱은 건강 데이터를 직접 읽을 수 없습니다. 단축어를 하나 만들면
+        홈 화면 아이콘 하나로 걸음 수까지 같이 들어옵니다.
+      </p>
+      <ol class="howto">
+        <li>단축어 앱 → 새 단축어 만들기</li>
+        <li><b>건강 샘플 가져오기</b> 추가 → 종류 <b>걸음 수</b>, 기간 <b>오늘</b>, <b>합계</b></li>
+        <li><b>URL 열기</b> 추가 → 아래 주소를 넣고 <b>[걸음수]</b> 자리에 1단계 결과를 끼워넣기</li>
+        <li>단축어 이름을 정하고 <b>홈 화면에 추가</b></li>
+      </ol>
+      <code class="url">${escapeHtml(SHORTCUT_URL)}</code>
+    </div>
+
+    <div class="card">
+      <h3>데이터</h3>
+      <p class="muted" style="margin:4px 0 10px">이 기기에만 저장됩니다. 지우면 되돌릴 수 없습니다.</p>
+      <button class="btn btn-danger btn-sm" id="stReset" type="button" style="width:100%">모든 데이터 초기화</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="stClose" type="button">닫기</button>
+      <button class="btn btn-primary" id="stSave" type="button">저장</button>
+    </div>
+  `, (modal) => {
+    const warn = modal.querySelector('#stWarn');
+    const saveBtn = modal.querySelector('#stSave');
+    const levelLabel = modal.querySelector('#stLevelLabel');
+
+    const hasBackToBack = (list) => list.slice().sort((a, b) => a - b)
+      .some((d, i, arr) => i > 0 && d - arr[i - 1] === 1);
+
+    const sync = () => {
+      const bad = hasBackToBack(days);
+      warn.classList.toggle('hidden', !bad);
+      saveBtn.disabled = bad;
+      const l = ladderAt(level);
+      levelLabel.textContent = `Lv${l.level} · ${l.label} · 약 ${l.approxKm}km`;
+    };
+    sync();
+
+    modal.querySelectorAll('#stDays button').forEach((b) => {
+      b.addEventListener('click', () => {
+        const d = Number(b.dataset.day);
+        days = days.includes(d) ? days.filter((x) => x !== d) : [...days, d];
+        b.classList.toggle('on', days.includes(d));
+        sync();
+      });
+    });
+
+    modal.querySelector('#stUp').addEventListener('click', () => {
+      level = Math.min(RUN_LADDER.length, level + 1); sync();
+    });
+    modal.querySelector('#stDown').addEventListener('click', () => {
+      level = Math.max(1, level - 1); sync();
+    });
+
+    modal.querySelector('#stReset').addEventListener('click', () => {
+      if (!confirm('모든 기록을 지웁니다. 계속할까요?')) return;
+      if (!confirm('정말 지웁니다. 되돌릴 수 없습니다.')) return;
+      for (const k of ['checks', 'sessions', 'steps', 'settings', 'lastTab', 'installHintDismissed']) {
+        store.remove(k);
+      }
+      closeModal();
+      renderToday();
+      activateTab('today');
+    });
+
+    modal.querySelector('#stClose').addEventListener('click', closeModal);
+    saveBtn.addEventListener('click', () => {
+      store.set('settings', { ...getSettings(), runDays: days, runLevel: level });
+      closeModal();
+      renderToday();
+    });
+  });
+}
 
 // ── 기록 탭 ─────────────────────────────────────────────────
 const CHART_W = 320;
@@ -597,6 +757,7 @@ setInterval(() => {
 document.querySelectorAll('.tabbar button').forEach((b) => {
   b.addEventListener('click', () => activateTab(b.dataset.tab));
 });
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
 absorbStepsParam();
 renderToday();
