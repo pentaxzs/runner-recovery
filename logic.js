@@ -203,7 +203,11 @@ export function parseStepsParam(search, today) {
 
   const rawSteps = params.get('steps');
   if (rawSteps === null || rawSteps.trim() === '') return null;
-  const steps = Number(rawSteps);
+  // 단축어의 "통계 계산" 합계는 9,240 처럼 천 단위 구분자가 붙어 온다.
+  // 그대로 Number()에 넣으면 NaN이라 연동이 조용히 죽는다.
+  const cleaned = rawSteps.replace(/[,\s\u00a0_]/g, '');
+  if (cleaned === '' || !/^\d+(\.\d+)?$/.test(cleaned)) return null;
+  const steps = Number(cleaned);
   if (!Number.isFinite(steps) || steps < 0 || steps > MAX_STEPS) return null;
 
   const rawDate = params.get('date');

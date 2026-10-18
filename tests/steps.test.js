@@ -31,3 +31,25 @@ test('rejects junk without throwing', () => {
 test('rounds a fractional step count', () => {
   assert.deepEqual(parseStepsParam('?steps=9240.7', TODAY), { date: TODAY, steps: 9241 });
 });
+
+// ── 단축어가 보내는 실제 형태 ───────────────────────────────
+test('a thousands separator from Shortcuts is accepted', () => {
+  // "통계 계산"의 합계가 9,240 형태로 넘어온다. 거부하면 연동이 조용히 죽는다.
+  assert.deepEqual(parseStepsParam('?steps=9,240', TODAY), { date: TODAY, steps: 9240 });
+  assert.deepEqual(parseStepsParam('?steps=12,345', TODAY), { date: TODAY, steps: 12345 });
+});
+
+test('stray spaces around the number are accepted', () => {
+  assert.deepEqual(parseStepsParam('?steps=%209240%20', TODAY), { date: TODAY, steps: 9240 });
+  assert.deepEqual(parseStepsParam('?steps=9%20240', TODAY), { date: TODAY, steps: 9240 });
+});
+
+test('a decimal sum is still rounded', () => {
+  assert.deepEqual(parseStepsParam('?steps=9,240.6', TODAY), { date: TODAY, steps: 9241 });
+});
+
+test('stripping separators does not turn text into a number', () => {
+  for (const bad of ['?steps=9,240보', '?steps=a,b,c', '?steps=,,,', '?steps=-,5']) {
+    assert.equal(parseStepsParam(bad, TODAY), null, `expected null for ${bad}`);
+  }
+});
