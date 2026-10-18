@@ -326,9 +326,9 @@ export function mealChecksFor(dateStr, weekday, weekend) {
 }
 
 // ── 체중 추이 ───────────────────────────────────────────────
-export function weightTrend(weights, today, windowDays) {
+export function metricTrend(series, today, windowDays) {
   const from = toDateStr(addDays(parseLocalDate(today), -(windowDays - 1)));
-  const entries = Object.entries(weights || {})
+  const entries = Object.entries(series || {})
     .filter(([d, v]) => d >= from && d <= today && Number.isFinite(v))
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
@@ -340,7 +340,7 @@ export function weightTrend(weights, today, windowDays) {
     first,
     delta: Math.round((latest - first) * 10) / 10,
     count: entries.length,
-    entries: entries.map(([date, kg]) => ({ date, kg })),
+    entries: entries.map(([date, value]) => ({ date, value })),
   };
 }
 
@@ -520,4 +520,23 @@ export function bestPainFreeIn(sessions, fromStr, toStr) {
   const runs = (sessions || [])
     .filter((s) => s.type === 'run' && s.date >= fromStr && s.date <= toStr);
   return runs.length ? round1(Math.max(...runs.map(painFreeKm))) : 0;
+}
+
+// ── 체성분 ──────────────────────────────────────────────────
+// 대한비만학회·WHO 아시아태평양 기준의 남성 복부비만 허리둘레 컷오프.
+// 체지방률보다 허리둘레를 앞세우는 이유: 체성분계의 체지방률은 수분 상태에
+// 따라 하루에도 1%씩 흔들리는데, 허리둘레는 줄자 하나로 훨씬 안정적이다.
+export const WAIST_CUTOFF_M = 90;
+
+export function waistNote(cm) {
+  if (!Number.isFinite(cm)) return null;
+  const diff = Math.round(Math.abs(cm - WAIST_CUTOFF_M) * 10) / 10;
+  return { over: cm > WAIST_CUTOFF_M, diff, cutoff: WAIST_CUTOFF_M };
+}
+
+export function countCheckDays(checks, id, dates) {
+  return (dates || []).filter((d) => {
+    const list = checks[d];
+    return Array.isArray(list) && list.includes(id);
+  }).length;
 }

@@ -72,6 +72,8 @@ Safari의 저장소를 분리**하므로, 단축어의 "URL 열기"로 `?steps=`
 | `store.js` | localStorage 래퍼 (실패 시 메모리 폴백) |
 | `app.js` | DOM 렌더링 + 이벤트 |
 | `sw.js` | 서비스워커 (오프라인). `VERSION`을 올려야 폰에 새 코드가 간다 |
+| `glyphs.js` | 헤더 글리프 (새로고침마다 교체) |
+| `illustrations.js` | 운동 단계별 SVG |
 | `tests/` | `node --test` |
 
 ## 문서

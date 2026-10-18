@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickTip, mealChecksFor as rawMealChecks, weightTrend } from '../logic.js';
+import { pickTip, mealChecksFor as rawMealChecks, metricTrend } from '../logic.js';
 import { MEAL_TIPS, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND } from '../data.js';
 
 const mealChecksFor = (d) => rawMealChecks(d, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
@@ -51,30 +51,30 @@ test('an empty tip pool returns null instead of throwing', () => {
 });
 
 // ── 체중 추이 ───────────────────────────────────────────────
-test('weightTrend reports the latest entry and the change over the window', () => {
+test('metricTrend reports the latest entry and the change over the window', () => {
   const w = { '2026-10-05': 74.0, '2026-10-12': 73.4, '2026-10-18': 73.1 };
-  const t = weightTrend(w, '2026-10-18', 28);
+  const t = metricTrend(w, '2026-10-18', 28);
   assert.equal(t.latest, 73.1);
   assert.ok(Math.abs(t.delta - -0.9) < 1e-9);
   assert.equal(t.count, 3);
 });
 
-test('weightTrend with no data does not produce NaN', () => {
-  const t = weightTrend({}, '2026-10-18', 28);
+test('metricTrend with no data does not produce NaN', () => {
+  const t = metricTrend({}, '2026-10-18', 28);
   assert.equal(t.latest, null);
   assert.equal(t.delta, 0);
   assert.equal(t.count, 0);
 });
 
-test('weightTrend with a single entry reports zero change', () => {
-  const t = weightTrend({ '2026-10-18': 73.1 }, '2026-10-18', 28);
+test('metricTrend with a single entry reports zero change', () => {
+  const t = metricTrend({ '2026-10-18': 73.1 }, '2026-10-18', 28);
   assert.equal(t.latest, 73.1);
   assert.equal(t.delta, 0);
 });
 
-test('weightTrend ignores entries outside the window and in the future', () => {
+test('metricTrend ignores entries outside the window and in the future', () => {
   const w = { '2026-08-01': 80, '2026-10-16': 73.5, '2026-11-01': 70 };
-  const t = weightTrend(w, '2026-10-18', 28);
+  const t = metricTrend(w, '2026-10-18', 28);
   assert.equal(t.count, 1);
   assert.equal(t.latest, 73.5);
 });

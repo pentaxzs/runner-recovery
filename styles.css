@@ -969,3 +969,6 @@ body.modal-open { overflow: hidden; }
 .wb-2 { height: 100%; background: var(--brand); }
 .wb-f { height: 4px; opacity: .3; }
 .wb-d { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }
+
+.ok-t { color: var(--ok); }
+.warn-t { color: var(--warn); }

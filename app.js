@@ -9,10 +9,11 @@ import { randomGlyph } from './glyphs.js';
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
-  weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
+  weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, metricTrend,
   startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
+  countCheckDays, waistNote, WAIST_CUTOFF_M,
   escapeHtml,
 } from './logic.js';
 
@@ -31,6 +32,8 @@ const PAUSE_DAYS = 14;
 const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
 
 const getWeights = () => store.get('weights', {});
+const getWaist = () => store.get('waist', {});
+const getBodyFat = () => store.get('bodyfat', {});
 const mealsToday = (dateStr) => mealChecksFor(dateStr, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
 const lightSets = (sets) => Math.max(2, Math.round(sets * LIGHT_FACTOR));
 let stepsError = null; // 단축어가 보낸 값을 못 읽었을 때 화면에 띄운다
@@ -405,7 +408,7 @@ function openSettings() {
     modal.querySelector('#stReset').addEventListener('click', () => {
       if (!confirm('모든 기록을 지웁니다. 계속할까요?')) return;
       if (!confirm('정말 지웁니다. 되돌릴 수 없습니다.')) return;
-      for (const k of ['checks', 'sessions', 'steps', 'weights', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
+      for (const k of ['checks', 'sessions', 'steps', 'weights', 'waist', 'bodyfat', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
         store.remove(k);
       }
       closeModal();
@@ -500,7 +503,6 @@ function renderHome() {
 
   const goal = weeklyRunGoal(settings, sessions, toDateStr(mondayOf(parseLocalDate(today))), today);
   const cum = cumulativeStats(sessions, steps);
-  const wt = weightTrend(getWeights(), today, 28);
 
   // 이번 주 요일별 필수 달성 (0~2)
   const weekStart = mondayOf(parseLocalDate(today));
@@ -509,6 +511,14 @@ function renderHome() {
     const list = checks[d] || [];
     return { d, n: ESSENTIAL_IDS.filter((id) => list.includes(id)).length, future: d > today };
   });
+
+  // 복부지방 — 행동(식사)과 측정값을 한 카드에
+  const mealDates = lastNDays(today, 30).filter((d) => !settings.startedAt || d >= settings.startedAt);
+  const mLate = countCheckDays(checks, 'm-late', mealDates);
+  const wT = metricTrend(getWeights(), today, 56);
+  const waistT = metricTrend(getWaist(), today, 56);
+  const fatT = metricTrend(getBodyFat(), today, 56);
+  const wNote = waistNote(waistT.latest);
 
   // 8주 통증 추이
   const from8w = toDateStr(addDays(parseLocalDate(today), -55));
@@ -564,6 +574,32 @@ function renderHome() {
     </div>
 
     <div class="card">
+      <div class="todo-head">
+        <h3>복부지방</h3>
+        <span class="todo-count">${mLate}/${mealDates.length}</span>
+      </div>
+      <p class="muted" style="margin:2px 0 0;font-size:12px">
+        최근 30일 중 <b>21시 이후 간식 없음</b>을 지킨 날. 복부지방에 가장 큰 레버입니다.
+      </p>
+      <div class="goalbar" style="margin-top:10px">
+        ${mealDates.slice(-15).map((d) =>
+          `<span class="gslot${(checks[d] || []).includes('m-late') ? ' on' : ''}"></span>`).join('')}
+      </div>
+      <div style="margin-top:12px">
+        ${metricRow('허리둘레', waistT, 'cm', true)}
+        ${metricRow('체지방률', fatT, '%', true)}
+        ${metricRow('체중', wT, 'kg', true)}
+      </div>
+      ${wNote ? `
+        <div class="block ${wNote.over ? 'warn' : 'ok'}">
+          <div class="muted">복부비만 기준(남성 ${WAIST_CUTOFF_M}cm) ${wNote.over ? '초과' : '이하'} ${wNote.diff}cm</div>
+        </div>` : `
+        <div class="block plain">
+          <div class="muted">허리둘레를 기록하면 추이가 보입니다. 기록 탭 → 체성분 → 측정값 기록.</div>
+        </div>`}
+    </div>
+
+    <div class="card">
       <h3>누적</h3>
       <div class="kv"><span class="k">러닝</span><span class="v">${cum.runKm}km · ${cum.runCount}회</span></div>
       ${cum.hasSteps
@@ -574,9 +610,6 @@ function renderHome() {
         ? `<div class="kv"><span class="k">다른 활동</span><span class="v">${
             Object.entries(cum.activities).map(([k, n]) => `${escapeHtml(ACTIVITY_LABELS[k] || k)} ${n}`).join(' · ')
           }</span></div>`
-        : ''}
-      ${wt.count >= 2
-        ? `<div class="kv"><span class="k">체중 (4주)</span><span class="v">${wt.latest}kg ${wt.delta > 0 ? '▲' : wt.delta < 0 ? '▼' : '–'} ${Math.abs(wt.delta)}</span></div>`
         : ''}
       ${cum.hasSteps ? '<p class="muted" style="margin:8px 0 0;font-size:11px">걷기 거리는 보폭 0.7m 가정 추정치입니다.</p>' : ''}
     </div>
@@ -656,7 +689,7 @@ function renderWeeklyReport() {
       <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
       <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
       ${(() => {
-        const wt = weightTrend(getWeights(), todayStr(), 7);
+        const wt = metricTrend(getWeights(), todayStr(), 7);
         return wt.count >= 2
           ? `<div class="kv"><span class="k">체중</span><span class="v">${wt.latest}kg ${wt.delta > 0 ? '▲' : wt.delta < 0 ? '▼' : '–'} ${Math.abs(wt.delta)}</span></div>`
           : '';
@@ -669,43 +702,119 @@ function renderWeeklyReport() {
   `;
 }
 
-function renderWeightCard() {
-  const t = weightTrend(getWeights(), todayStr(), 56);
-  const arrow = t.delta > 0 ? '▲' : t.delta < 0 ? '▼' : '–';
-  const w = 320, h = 70, pad = 8;
+function sparkline(entries, color) {
+  if (entries.length < 2) return '';
+  const w = 300, h = 54, pad = 6;
+  const vals = entries.map((e) => e.value);
+  const max = Math.max(...vals), min = Math.min(...vals);
+  const span = max === min ? 1 : max - min;
+  const pts = entries.map((e, i) => {
+    const x = (i / (entries.length - 1)) * w + pad;
+    const y = h - ((e.value - min) / span) * h + pad;
+    return `${x},${y}`;
+  }).join(' ');
+  return `<svg class="chart" viewBox="0 0 ${w + pad * 2} ${h + pad * 2}" role="img">
+    <polyline fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>
+  </svg>`;
+}
 
-  let chart = '<div class="empty" style="padding:12px">기록이 쌓이면 추이가 보입니다.</div>';
-  if (t.count >= 2) {
-    const kgs = t.entries.map((e) => e.kg);
-    const max = Math.max(...kgs), min = Math.min(...kgs);
-    const span = max === min ? 1 : max - min;
-    const pts = t.entries.map((e, i) => {
-      const x = (i / (t.entries.length - 1)) * w + pad;
-      const y = h - ((e.kg - min) / span) * h + pad;
-      return `${x},${y}`;
-    }).join(' ');
-    chart = `<svg class="chart" viewBox="0 0 ${w + pad * 2} ${h + pad * 2}" role="img" aria-label="체중 추이">
-      <polyline fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>
-    </svg>`;
-  }
+function metricRow(label, trend, unit, lowerIsBetter) {
+  if (trend.latest === null) return `<div class="kv"><span class="k">${escapeHtml(label)}</span><span class="v">–</span></div>`;
+  const good = lowerIsBetter ? trend.delta < 0 : trend.delta > 0;
+  const arrow = trend.delta > 0 ? '▲' : trend.delta < 0 ? '▼' : '–';
+  const cls = trend.delta === 0 ? '' : good ? 'ok-t' : 'warn-t';
+  return `
+    <div class="kv">
+      <span class="k">${escapeHtml(label)}</span>
+      <span class="v">${trend.latest}${escapeHtml(unit)}
+        ${trend.count >= 2 ? `<span class="${cls}" style="font-weight:700;font-size:12px">${arrow} ${Math.abs(trend.delta)}</span>` : ''}
+      </span>
+    </div>`;
+}
+
+function renderBodyCard() {
+  const today = todayStr();
+  const w = metricTrend(getWeights(), today, 56);
+  const waist = metricTrend(getWaist(), today, 56);
+  const fat = metricTrend(getBodyFat(), today, 56);
+  const note = waistNote(waist.latest);
 
   return `
     <div class="card">
-      <h3>체중</h3>
-      <p class="muted" style="margin:4px 0 0">
-        달릴 때 무릎에는 체중의 2~3배가 걸립니다. 1kg는 한 걸음당 2~3kg입니다.
+      <h3>체성분</h3>
+      <p class="muted" style="margin:4px 0 0;font-size:12px">
+        복부지방은 허리둘레가 가장 정직한 지표입니다. 체성분계의 체지방률은
+        수분 상태에 따라 하루에도 흔들립니다.
       </p>
-      <div class="kv" style="margin-top:8px">
-        <span class="k">최근</span>
-        <span class="v">${t.latest === null ? '–' : `${t.latest}kg`}
-          ${t.count >= 2 ? `<span class="muted" style="font-weight:600">${arrow} ${Math.abs(t.delta)}</span>` : ''}</span>
+      <div style="margin-top:8px">
+        ${metricRow('체중', w, 'kg', true)}
+        ${metricRow('허리둘레', waist, 'cm', true)}
+        ${metricRow('체지방률', fat, '%', true)}
       </div>
-      ${chart}
-      <div class="btn-row" style="margin-top:10px">
-        <input type="number" id="wInput" step="0.1" min="20" max="250" placeholder="오늘 체중 (kg)">
-        <button class="btn btn-sm btn-primary" id="wSave" type="button" style="flex:none">기록</button>
-      </div>
+      ${note ? `
+        <div class="block ${note.over ? 'warn' : 'ok'}">
+          <div class="muted">${note.over
+            ? `복부비만 기준(남성 ${WAIST_CUTOFF_M}cm)보다 ${note.diff}cm 위입니다.`
+            : `복부비만 기준(남성 ${WAIST_CUTOFF_M}cm)보다 ${note.diff}cm 아래입니다.`}</div>
+        </div>` : ''}
+      ${waist.count >= 2 ? sparkline(waist.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
+      <button class="btn btn-sm" id="bodyBtn" type="button" style="width:100%;margin-top:10px">측정값 기록</button>
     </div>`;
+}
+
+function openBodyModal() {
+  const today = todayStr();
+  const w = getWeights()[today];
+  const wa = getWaist()[today];
+  const bf = getBodyFat()[today];
+
+  openModal(`
+    <p class="muted" style="margin:0 0 14px">비워둔 항목은 저장하지 않습니다.</p>
+    <label class="field"><span>체중 (kg)</span>
+      <input type="text" inputmode="decimal" id="bmW" placeholder="예: 73.1" value="${Number.isFinite(w) ? w : ''}"></label>
+    <label class="field"><span>허리둘레 (cm)</span>
+      <input type="text" inputmode="decimal" id="bmWaist" placeholder="예: 86.5" value="${Number.isFinite(wa) ? wa : ''}"></label>
+    <label class="field"><span>체지방률 (%)</span>
+      <input type="text" inputmode="decimal" id="bmFat" placeholder="예: 22.4" value="${Number.isFinite(bf) ? bf : ''}"></label>
+    <div class="block plain">
+      <div class="bt">허리둘레 재는 법</div>
+      <div class="muted">숨을 내쉰 상태에서, 갈비뼈 아래와 골반뼈 위의 중간 높이를
+        줄자가 바닥과 나란하게. 배를 집어넣지 마세요. 매번 같은 시간대에 재야 비교가 됩니다.</div>
+    </div>
+    <div id="bmMsg"></div>
+  `, (modal) => {
+    const num = (id, lo, hi) => {
+      const v = modal.querySelector(id).value.trim();
+      if (v === '') return undefined;
+      const n = Number(v.replace(/[,\s]/g, ''));
+      return Number.isFinite(n) && n >= lo && n <= hi ? Math.round(n * 10) / 10 : null;
+    };
+    modal.querySelector('#bmCancel').addEventListener('click', closeModal);
+    modal.querySelector('#bmSave').addEventListener('click', () => {
+      const vals = { w: num('#bmW', 20, 250), waist: num('#bmWaist', 40, 200), fat: num('#bmFat', 3, 70) };
+      if (Object.values(vals).some((v) => v === null)) {
+        modal.querySelector('#bmMsg').innerHTML =
+          '<div class="block warn" style="margin-top:10px"><div class="muted">숫자 범위를 확인해주세요.</div></div>';
+        return;
+      }
+      const put = (key, getter, v) => {
+        if (v === undefined) return;
+        const map = getter();
+        map[today] = v;
+        store.set(key, map);
+      };
+      put('weights', getWeights, vals.w);
+      put('waist', getWaist, vals.waist);
+      put('bodyfat', getBodyFat, vals.fat);
+      closeModal();
+      renderLog();
+      if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
+    });
+  }, {
+    footer: `
+      <button class="btn btn-ghost" id="bmCancel" type="button">취소</button>
+      <button class="btn btn-primary" id="bmSave" type="button">저장</button>`,
+  });
 }
 
 function renderLog() {
@@ -722,7 +831,7 @@ function renderLog() {
       <p class="muted" style="margin:4px 0 0">선이 올라가면 회복되고 있다는 뜻입니다. 빨간 점은 통증이 있던 날입니다.</p>
       ${renderChart(sessions)}
     </div>
-    ${renderWeightCard()}
+    ${renderBodyCard()}
     <div class="card">
       <h3>걸음 수</h3>
       ${renderStepBars(steps) || `<div class="empty">아직 기록이 없습니다.<br>
@@ -740,21 +849,8 @@ function renderLog() {
   const stepsBtn2 = root.querySelector('#logStepsBtn');
   if (stepsBtn2) stepsBtn2.addEventListener('click', openStepsModal);
 
-  const wSave = root.querySelector('#wSave');
-  if (wSave) {
-    wSave.addEventListener('click', () => {
-      const el = root.querySelector('#wInput');
-      const kg = Number(el.value);
-      if (!Number.isFinite(kg) || kg < 20 || kg > 250) {
-        alert('체중을 kg 단위로 입력해주세요.');
-        return;
-      }
-      const w = getWeights();
-      w[todayStr()] = Math.round(kg * 10) / 10;
-      store.set('weights', w);
-      renderLog();
-    });
-  }
+  const bodyBtn = root.querySelector('#bodyBtn');
+  if (bodyBtn) bodyBtn.addEventListener('click', openBodyModal);
 
   // 메모는 사용자 입력이므로 textContent로 넣는다.
   const list = root.querySelector('#logList');
