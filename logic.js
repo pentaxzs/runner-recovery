@@ -213,3 +213,15 @@ export function weeklyReport({ checks = {}, sessions = [], steps = {}, essential
     hasData: runs.length > 0 || essentialDone > 0 || stepDays.length > 0,
   };
 }
+
+// ── HTML 이스케이프 ─────────────────────────────────────────
+// 사용자가 쓴 메모가 마크업으로 해석되지 않게 한다.
+export function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
