@@ -3,7 +3,7 @@ import { TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABE
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
-  weeklyReport, chartPoints, escapeHtml,
+  weeklyReport, chartPoints, nextStepHint, escapeHtml,
 } from './logic.js';
 
 const store = createStore();
@@ -14,7 +14,10 @@ const SATURDAY = 6;
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const COMMUTE_WALK_LABEL = '출퇴근 걷기 45분';
 
-const DEFAULT_SETTINGS = { painOnsetKm: 0, runLevel: 1, runDays: [2, 4], startedAt: null };
+const DEFAULT_SETTINGS = {
+  painOnsetKm: 0, runLevel: 1, runDays: [2, 4], startedAt: null, pausedUntil: null,
+};
+const PAUSE_DAYS = 14;
 
 // ── 상태 접근 ────────────────────────────────────────────────
 const getSettings = () => ({ ...DEFAULT_SETTINGS, ...store.get('settings', {}) });
@@ -28,7 +31,12 @@ function ladderAt(level) {
   return RUN_LADDER[idx];
 }
 
+function isPaused(settings, dateStr) {
+  return Boolean(settings.pausedUntil) && dateStr < settings.pausedUntil;
+}
+
 function isRunDay(dateStr, settings) {
+  if (isPaused(settings, dateStr)) return false; // 중단 기간에는 러닝을 띄우지 않는다
   const day = parseLocalDate(dateStr).getDay();
   if (day === SUNDAY) return true;
   if (day === SATURDAY) return false;
@@ -356,7 +364,8 @@ function renderWeeklyReport() {
   if (!r.hasData) return '';
 
   const settings = getSettings();
-  const decided = nextLevel(settings.runLevel, getSessions().filter((s) => s.type === 'run'), RUN_LADDER.length);
+  // nextLevel()은 러닝 저장 시 이미 적용됐다. 여기서 다시 부르면 같은 승급을 두 번 센다.
+  const hint = nextStepHint(settings.runLevel, getSessions().filter((s) => s.type === 'run'), RUN_LADDER.length);
   const arrow = r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : '–';
 
   return `
@@ -366,9 +375,9 @@ function renderWeeklyReport() {
       <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
       <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
       <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
-      <div class="block ${decided.paused ? 'warn' : 'ok'}">
+      <div class="block ${hint.paused ? 'warn' : 'ok'}">
         <div class="bt">다음 주 제안</div>
-        <div class="muted">${escapeHtml(decided.reason)}${decided.paused ? '' : ` · Lv${decided.level}`}</div>
+        <div class="muted">${escapeHtml(hint.reason)}${hint.paused ? '' : ` · 현재 Lv${hint.level}`}</div>
       </div>
     </div>
   `;
@@ -379,7 +388,7 @@ function renderLog() {
   const sessions = getSessions();
   const steps = getSteps();
 
-  const recent = sessions.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+  const recent = sessions.slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, 60);
 
   root.innerHTML = `
     ${renderWeeklyReport()}
@@ -488,7 +497,20 @@ export function renderToday() {
   const ranToday = loggedToday.some((s) => s.type === 'run');
   const golfToday = loggedToday.some((s) => s.type === 'golf');
 
-  if (day === SATURDAY) {
+  if (isPaused(settings, today)) {
+    parts.push(`
+      <div class="card hero rest">
+        <div class="label">러닝 중단 중 · ${escapeHtml(fmtDate(settings.pausedUntil))}까지</div>
+        <div class="title">걷기 + 강화만</div>
+        <div class="meta">통증이 3회 연속 나왔습니다. 2주간 러닝을 빼고 엉덩이 근력과 걷기로 버팁니다.</div>
+        <ul>
+          <li>필수 2개는 매일 그대로</li>
+          <li>걷기는 통증 없는 범위에서 자유롭게</li>
+          <li>그래도 아프면 병원 진료를 권합니다</li>
+        </ul>
+      </div>
+    `);
+  } else if (day === SATURDAY) {
     parts.push(`
       <div class="card hero rest">
         <div class="label">오늘의 한 가지</div>
@@ -613,7 +635,14 @@ export function renderToday() {
     </div>
   `);
 
+  // 체크 한 번에 섹션이 닫히면 토요일 필수 2개를 연달아 체크할 수 없다.
+  const openState = [...root.querySelectorAll('details')].map((d) => d.open);
+  const scrollY = window.scrollY;
+
   root.innerHTML = parts.join('');
+
+  root.querySelectorAll('details').forEach((d, i) => { if (openState[i]) d.open = true; });
+  if (scrollY) window.scrollTo(0, scrollY);
 
   // ── 이벤트 ──
   root.querySelectorAll('input[data-check]').forEach((el) => {
@@ -688,16 +717,27 @@ function openRunModal() {
 
     modal.querySelector('#rmCancel').addEventListener('click', closeModal);
     modal.querySelector('#rmSave').addEventListener('click', () => {
-      const distanceKm = Number(modal.querySelector('#rmDist').value) || 0;
+      const distRaw = Number(modal.querySelector('#rmDist').value);
+      if (!Number.isFinite(distRaw) || distRaw <= 0) {
+        alert('뛴 거리를 입력해주세요.');
+        return;
+      }
+      const distanceKm = Math.min(distRaw, 100);
       const hadPain = painEl.checked;
-      const onsetRaw = Number(modal.querySelector('#rmOnset').value);
+      const onsetEl = modal.querySelector('#rmOnset');
+      const onsetRaw = onsetEl.value === '' ? NaN : Number(onsetEl.value);
+      if (hadPain && !Number.isFinite(onsetRaw)) {
+        alert('통증이 시작된 거리를 입력해주세요. 처음부터 아팠다면 0을 넣으세요.');
+        return;
+      }
       const session = {
         date: today,
         type: 'run',
         level: settings.runLevel,
         distanceKm,
         hadPain,
-        painOnsetKm: hadPain && Number.isFinite(onsetRaw) && onsetRaw > 0 ? onsetRaw : undefined,
+        // 0은 유효한 값이다 — 첫 걸음부터 아팠다는 뜻.
+        painOnsetKm: hadPain ? Math.min(Math.max(onsetRaw, 0), distanceKm) : undefined,
         painScore: hadPain ? Number(scoreEl.value) : 0,
         memo: modal.querySelector('#rmMemo').value || '',
       };
@@ -707,7 +747,12 @@ function openRunModal() {
       store.set('sessions', list);
 
       const decided = nextLevel(settings.runLevel, list.filter((s) => s.type === 'run'), RUN_LADDER.length);
-      store.set('settings', { ...settings, runLevel: decided.level, painOnsetKm: painFreeKm(session) });
+      store.set('settings', {
+        ...settings,
+        runLevel: decided.level,
+        painOnsetKm: painFreeKm(session),
+        pausedUntil: decided.paused ? toDateStr(addDays(parseLocalDate(today), PAUSE_DAYS)) : null,
+      });
 
       closeModal();
       renderToday();
@@ -744,14 +789,22 @@ function closeModal() {
 
 // ── 자정 넘김 ───────────────────────────────────────────────
 // location.reload()를 쓰지 않는다 — 입력 중이던 모달 값이 날아간다.
+// 모달은 #modal-root(=.app의 형제)에 있고 renderToday()는 #tab-today만 건드리므로
+// 모달이 열려 있어도 다시 그려서 안전하다. 건너뛰면 날짜가 영구히 어긋난다.
 let lastSeenDate = todayStr();
-setInterval(() => {
+function checkDateRollover() {
   const now = todayStr();
-  if (now !== lastSeenDate) {
-    lastSeenDate = now;
-    if (!document.getElementById('modal-root').firstChild) renderToday();
-  }
-}, 60000);
+  if (now === lastSeenDate) return;
+  lastSeenDate = now;
+  renderToday();
+  if (!document.getElementById('tab-log').classList.contains('hidden')) renderLog();
+}
+setInterval(checkDateRollover, 60000);
+// 폰에서는 앱이 백그라운드에 있는 동안 타이머가 묶인다. 복귀 시점에도 확인한다.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) checkDateRollover();
+});
+window.addEventListener('pageshow', checkDateRollover);
 
 // ── 서비스워커 + iOS 설치 안내 ──────────────────────────────
 function registerServiceWorker() {
@@ -795,6 +848,6 @@ absorbStepsParam();
 maybeShowInstallHint();
 registerServiceWorker();
 renderToday();
-activateTab(store.get('lastTab', 'today'));
+activateTab(isOnboarded() ? store.get('lastTab', 'today') : 'today');
 
 window.__rr = { store, renderToday };

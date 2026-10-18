@@ -71,11 +71,30 @@ export function calcStreak(checks, essentialIds, today) {
 
 // 통증이 없었다면 "그날 뛴 거리까지는 괜찮았다"는 하한값으로 쓴다.
 // painOnsetKm만 쓰면 가장 잘 풀린 날 그래프에 구멍이 뚫린다.
+//
+// 통증이 있었는데 시작 거리를 모르면 0이다. 거리로 대체하면 첫 걸음부터
+// 아팠던 러닝이 그 주의 최고 기록으로 찍힌다 — 그래프의 의미가 뒤집힌다.
 export function painFreeKm(session) {
   if (!session) return 0;
-  if (session.hadPain && Number.isFinite(session.painOnsetKm)) return session.painOnsetKm;
-  return Number.isFinite(session.distanceKm) ? session.distanceKm : 0;
+  const dist = Number.isFinite(session.distanceKm) ? session.distanceKm : 0;
+  if (!session.hadPain) return dist;
+  if (!Number.isFinite(session.painOnsetKm)) return 0;
+  return Math.min(Math.max(session.painOnsetKm, 0), dist); // 거리보다 긴 onset은 잘라낸다
 }
+
+// 지금 레벨에서 연속으로 통증 없이 끝낸 횟수.
+// session.level은 그 러닝을 수행한 레벨이라, 승급 직후 카운트가 리셋된다.
+function cleanRunsAtLevel(runs, level) {
+  let n = 0;
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const s = runs[i];
+    if (s.hadPain || s.level !== level) break;
+    n++;
+  }
+  return n;
+}
+
+const CLEAN_RUNS_TO_PROMOTE = 2;
 
 export function nextLevel(currentLevel, runSessions, ladderLength) {
   const runs = (runSessions || []).filter((s) => s.type === 'run');
@@ -99,8 +118,9 @@ export function nextLevel(currentLevel, runSessions, ladderLength) {
     };
   }
 
-  const last2 = runs.slice(-2);
-  if (last2.length === 2 && last2.every((s) => !s.hadPain)) {
+  // 마지막 2회가 아니라 "이 레벨에서" 2회여야 한다. 슬라이딩 윈도우로 보면
+  // 승급 후 매 러닝마다 또 승급해 부하가 설계보다 두 배로 빨리 오른다.
+  if (cleanRunsAtLevel(runs, currentLevel) >= CLEAN_RUNS_TO_PROMOTE) {
     return {
       level: Math.min(ladderLength, currentLevel + 1),
       reason: '통증 없이 2회 연속 — 한 단계 올립니다',
@@ -109,6 +129,27 @@ export function nextLevel(currentLevel, runSessions, ladderLength) {
   }
 
   return { level: currentLevel, reason: '한 번 더 통증 없이 끝내면 올립니다', paused: false };
+}
+
+// 리포트용. nextLevel()은 러닝을 저장할 때 이미 적용되므로, 여기서 다시 부르면
+// 같은 승급을 두 번 센다. 이 함수는 상태를 바꾸지 않고 "다음에 뭐가 오는지"만 말한다.
+export function nextStepHint(currentLevel, runSessions, ladderLength) {
+  const runs = (runSessions || []).filter((s) => s.type === 'run');
+  const last3 = runs.slice(-3);
+  if (last3.length === 3 && last3.every((s) => s.hadPain)) {
+    return { level: currentLevel, reason: '통증이 계속됩니다 — 2주 쉬고 걷기·강화만', paused: true };
+  }
+  if (runs.length === 0) {
+    return { level: currentLevel, reason: '첫 러닝을 기록해보세요', paused: false };
+  }
+  const clean = cleanRunsAtLevel(runs, currentLevel);
+  const need = CLEAN_RUNS_TO_PROMOTE - clean;
+  const reason = need <= 0
+    ? `다음 러닝에서 Lv${Math.min(ladderLength, currentLevel + 1)}로 올립니다`
+    : need === 1
+      ? `한 번 더 통증 없이 끝내면 Lv${Math.min(ladderLength, currentLevel + 1)}`
+      : '이 단계를 통증 없이 두 번 끝내면 올립니다';
+  return { level: currentLevel, reason, paused: false };
 }
 
 // ── 자투리 미션 선택 ────────────────────────────────────────

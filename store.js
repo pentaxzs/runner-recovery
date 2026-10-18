@@ -19,7 +19,12 @@ export function createStore(backend = defaultBackend()) {
 
   const readRaw = (k) => {
     if (backend) {
-      try { return backend.getItem(k); } catch { /* 메모리로 */ }
+      // getItem이 멀쩡해도 setItem이 터지는 경우(용량 초과)가 있다. 그때
+      // backend는 null을 돌려주므로 메모리 사본까지 내려가야 쓴 값을 되읽는다.
+      try {
+        const v = backend.getItem(k);
+        if (v !== null) return v;
+      } catch { /* 메모리로 */ }
     }
     return memory.has(k) ? memory.get(k) : null;
   };

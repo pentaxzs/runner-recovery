@@ -1,5 +1,5 @@
 // app shell을 cache-first로 잡는다. 외부 의존성이 없어 오프라인이 완전히 동작한다.
-const VERSION = 'rr-v3-001'; // 배포할 때마다 올린다
+const VERSION = 'rr-v3-002'; // 배포할 때마다 올린다
 const ASSETS = [
   './', './index.html', './styles.css',
   './app.js', './logic.js', './data.js', './store.js',
