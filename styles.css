@@ -199,14 +199,9 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
 .check-row.done .t { text-decoration: line-through; color: var(--muted); }
 
 /* ── 자투리 미션 ────────────────────────────────────── */
-.mission {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--border);
-}
-.mission:last-child { border-bottom: 0; }
+/* 체크 가능한 줄이다. .check-row의 간격을 그대로 쓰되, 맥락 배지가
+   체크박스와 같은 줄에 서도록 세로 정렬만 가운데로 돌린다. */
+.mission { align-items: center; gap: 10px; }
 .mission .ctx {
   flex: none;
   min-width: 54px;
@@ -218,7 +213,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   border-radius: 0;
   padding: 4px 8px;
 }
-.mission .txt { font-size: 14px; }
+.mission .txt { font-size: 14px; font-weight: 600; }
+.mission.done .txt { text-decoration: line-through; color: var(--muted); }
 
 /* ── 배지 / 칩 ──────────────────────────────────────── */
 .pill {
@@ -972,3 +968,60 @@ body.modal-open { overflow: hidden; }
 
 .ok-t { color: var(--ok); }
 .warn-t { color: var(--warn); }
+
+/* ── 체크 축하 ──────────────────────────────────────── */
+/* 화면 위에 잠깐 떴다 내려가는 바텀시트. 손이 닿는 곳에 있어서, 읽기 전에
+   닫고 싶으면 그냥 탭하면 된다. */
+.cheer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--text);
+  color: var(--surface);
+  padding: 15px 18px calc(15px + env(safe-area-inset-bottom));
+  transform: translateY(110%);
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+.cheer.up { transform: translateY(0); }
+.cheer.done { background: var(--ok); }
+.cheer-line { display: flex; align-items: center; gap: 11px; }
+.cheer .emo { font-size: 20px; flex: none; }
+.cheer .msg { font-size: 14px; font-weight: 700; line-height: 1.45; }
+.cheer .q { font-size: 14.5px; font-weight: 700; line-height: 1.55; }
+.cheer .by { margin-top: 7px; font-size: 12px; font-weight: 700; opacity: 0.62; }
+.cheer .bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.45);
+  transform-origin: left;
+}
+
+/* 체크박스에서 튀는 불꽃. 체크 위치를 기준으로 터지므로 어느 줄을 눌렀는지
+   눈이 바로 따라간다. */
+.spark {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: var(--brand);
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes spark-fly {
+  to { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+}
+@keyframes cheer-bar {
+  to { transform: scaleX(0); }
+}
+
+/* 움직임을 줄여달라고 한 기기에서는 불꽃을 없애고 시트도 그냥 나타난다. */
+@media (prefers-reduced-motion: reduce) {
+  .cheer { transition: none; }
+  .spark { display: none; }
+  .cheer .bar { animation: none !important; }
+}

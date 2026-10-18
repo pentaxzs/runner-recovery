@@ -1,6 +1,7 @@
 import { createStore } from './store.js';
 import {
   TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABELS,
+  CHEER_PROGRESS, CHEER_ALMOST, COMPLETE_QUOTES,
   WARMUP_MIN, COOLDOWN_MIN, MEAL_TIPS, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND,
   ACTIVITIES, ACTIVITY_LABELS, HIGH_LOAD_IDS,
 } from './data.js';
@@ -14,6 +15,7 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
+  cheerStage, pickCheer,
   escapeHtml,
 } from './logic.js';
 
@@ -1086,17 +1088,24 @@ export function renderToday() {
 
   // 4. 자투리 미션 3개
   const missions = pickMissions(MICRO_MISSIONS, today, 3);
+  const missionDone = missions.filter((m) => todayChecks.includes(m.id)).length;
   if (missions.length) {
     parts.push(`
       <div class="card">
-        <h3>자투리 <span class="muted" style="font-weight:600">· 매일 바뀝니다</span></h3>
+        <div class="todo-head">
+          <h3>자투리 <span class="muted" style="font-weight:600">· 매일 바뀝니다</span></h3>
+          <span class="todo-count">${missionDone}/${missions.length}</span>
+        </div>
         <div style="margin-top:6px">
-          ${missions.map((m) => `
-            <div class="mission">
+          ${missions.map((m) => {
+            const on = todayChecks.includes(m.id);
+            return `
+            <label class="check-row mission ${on ? 'done' : ''}">
+              <input type="checkbox" data-check="${m.id}" ${on ? 'checked' : ''}>
               <span class="ctx">${escapeHtml(CONTEXT_LABELS[m.context] || m.context)}</span>
-              <span class="txt">${escapeHtml(m.text)}</span>
-            </div>
-          `).join('')}
+              <span class="txt t">${escapeHtml(m.text)}</span>
+            </label>`;
+          }).join('')}
         </div>
       </div>
     `);
@@ -1178,12 +1187,25 @@ export function renderToday() {
   // ── 이벤트 ──
   root.querySelectorAll('input[data-check]').forEach((el) => {
     el.addEventListener('change', () => {
+      const id = el.dataset.check;
+      const turnedOn = el.checked;
       const latest = getChecks();
       const list = new Set(latest[today] || []);
-      if (el.checked) list.add(el.dataset.check); else list.delete(el.dataset.check);
+      if (turnedOn) list.add(id); else list.delete(id);
       latest[today] = [...list];
       store.set('checks', latest);
-      renderToday();
+
+      // 명언은 필수를 다 채웠을 때만. 자투리와 식사는 짧은 응원까지다.
+      const essential = ESSENTIAL_IDS.includes(id);
+      const stage = essential
+        ? cheerStage(todoDone + (turnedOn ? 1 : -1), todoTotal)
+        : 'progress';
+
+      renderToday(); // 불꽃은 다시 그린 뒤에 붙여야 같이 지워지지 않는다
+      if (!turnedOn) { hideCheer(); return; }
+      const fresh = root.querySelector(`input[data-check="${CSS.escape(id)}"]`);
+      if (fresh) sparkle(fresh);
+      showCheer(stage, today);
     });
   });
 
@@ -1386,6 +1408,75 @@ function showLevelToast(decided) {
 // ── 모달 공통 ───────────────────────────────────────────────
 // opts.fullscreen: 딤 없이 화면을 채운다. opts.footer: 스크롤과 무관하게 하단 고정.
 // opts.title: 전체화면일 때 상단에 남는 제목.
+// ── 체크 축하 ───────────────────────────────────────────────
+// 체크 하나를 누른 직후에만 뜬다. 끄는 건 축하할 일이 아니다.
+const CHEER_MS = { progress: 1900, almost: 1900, complete: 5000 };
+const lastCheer = { progress: -1, almost: -1 };
+let cheerTimer = null;
+
+function sparkle(input) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const host = input.closest('.check-row');
+  if (!host) return;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+
+  const box = input.getBoundingClientRect();
+  const base = host.getBoundingClientRect();
+  const cx = box.left - base.left + box.width / 2;
+  const cy = box.top - base.top + box.height / 2;
+
+  for (let i = 0; i < 10; i++) {
+    const s = document.createElement('span');
+    s.className = 'spark';
+    const angle = (Math.PI * 2 * i) / 10 + Math.random() * 0.5;
+    const dist = 26 + Math.random() * 20;
+    s.style.left = `${cx - 2.5}px`;
+    s.style.top = `${cy - 2.5}px`;
+    s.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+    s.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+    s.style.animation = 'spark-fly .5s cubic-bezier(.2,.7,.3,1) forwards';
+    if (i % 3 === 0) s.style.background = 'var(--ok)';
+    host.appendChild(s);
+    setTimeout(() => s.remove(), 520);
+  }
+}
+
+function hideCheer() {
+  const el = document.getElementById('cheer');
+  if (!el) return;
+  el.classList.remove('up');
+  clearTimeout(cheerTimer);
+  cheerTimer = setTimeout(() => { el.hidden = true; }, 340);
+}
+
+function showCheer(stage, dateStr) {
+  const el = document.getElementById('cheer');
+  if (!el || !stage) return;
+  const ms = CHEER_MS[stage];
+
+  let body;
+  if (stage === 'complete') {
+    const q = pickTip(COMPLETE_QUOTES, dateStr, 'quote:');
+    if (!q) return;
+    body = `<div class="q">\u201C${escapeHtml(q.text)}\u201D</div><div class="by">— ${escapeHtml(q.by)}</div>`;
+  } else {
+    const pool = stage === 'almost' ? CHEER_ALMOST : CHEER_PROGRESS;
+    const got = pickCheer(pool, Math.random, lastCheer[stage]);
+    if (!got) return;
+    lastCheer[stage] = got.index;
+    body = `<div class="cheer-line"><span class="emo">${escapeHtml(got.cheer.emoji)}</span>` +
+      `<span class="msg">${escapeHtml(got.cheer.text)}</span></div>`;
+  }
+
+  clearTimeout(cheerTimer);
+  el.hidden = false;
+  el.classList.toggle('done', stage === 'complete');
+  el.innerHTML = `${body}<span class="bar" style="animation:cheer-bar ${ms}ms linear forwards"></span>`;
+  void el.offsetWidth; // 연속으로 눌러도 트랜지션이 다시 시작되도록
+  el.classList.add('up');
+  cheerTimer = setTimeout(hideCheer, ms);
+}
+
 function openModal(html, wire, opts = {}) {
   const root = document.getElementById('modal-root');
   const full = Boolean(opts.fullscreen);
@@ -1554,6 +1645,8 @@ document.querySelectorAll('.tabbar button').forEach((b) => {
   b.addEventListener('click', () => activateTab(b.dataset.tab));
 });
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
+// 명언은 5초 머문다. 다 읽었으면 기다리지 않고 탭해서 치운다.
+document.getElementById('cheer').addEventListener('click', hideCheer);
 
 renderHeaderGlyph();
 bindTabSwipe();

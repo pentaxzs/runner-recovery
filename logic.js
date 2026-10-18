@@ -314,9 +314,11 @@ export function chartPoints(sessions, width, height) {
 // 미션과 같은 시드를 쓰면 둘이 항상 붙어 움직인다. salt로 떼어놓는다.
 const TIP_SALT = 'meal:';
 
-export function pickTip(pool, dateStr) {
+// salt로 시드를 갈라둔다. 같은 소금을 쓰면 식사 팁과 명언이 매일 같은
+// 자리를 집어서 둘이 붙어 다닌다.
+export function pickTip(pool, dateStr, salt = TIP_SALT) {
   if (!Array.isArray(pool) || pool.length === 0) return null;
-  const rand = mulberry32(dateSeed(TIP_SALT + dateStr));
+  const rand = mulberry32(dateSeed(salt + dateStr));
   return pool[Math.floor(rand() * pool.length)];
 }
 
@@ -551,6 +553,34 @@ export function bodyVerdict(fat, muscle) {
   if (fat.delta <= -BODY_NOISE_KG) return muscleDown ? 'fat-down-muscle-down' : 'fat-down';
   if (fat.delta >= BODY_NOISE_KG) return 'fat-up';
   return 'flat';
+}
+
+// ── 체크 축하 ───────────────────────────────────────────────
+// 체크 하나하나가 같은 무게는 아니다. 마지막 하나를 남겨둔 순간이 제일 잘
+// 움직이는 지점이라 따로 센다.
+export function cheerStage(done, total) {
+  if (!Number.isFinite(total) || total <= 0) return null;
+  if (done >= total) return 'complete';
+  if (done === total - 1) return 'almost';
+  return 'progress';
+}
+
+// 같은 말이 연달아 나오면 풀이 아무리 커도 자동응답처럼 느껴진다. 직전
+// 항목을 뺀 나머지에서 고르므로 치우침 없이 고르게 돈다.
+export function pickCheer(pool, rand, lastIndex) {
+  if (!Array.isArray(pool) || pool.length === 0) return null;
+  const n = pool.length;
+  if (n === 1) return { index: 0, cheer: pool[0] };
+
+  const avoid = Number.isInteger(lastIndex) && lastIndex >= 0 && lastIndex < n;
+  let i;
+  if (avoid) {
+    i = Math.min(Math.floor(rand() * (n - 1)), n - 2);
+    if (i >= lastIndex) i += 1;
+  } else {
+    i = Math.min(Math.floor(rand() * n), n - 1);
+  }
+  return { index: i, cheer: pool[i] };
 }
 
 export function countCheckDays(checks, id, dates) {
