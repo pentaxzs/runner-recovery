@@ -169,3 +169,47 @@ export function parseStepsParam(search, today) {
 
   return { date, steps: Math.round(steps) };
 }
+
+// ── 주간 리포트 ──────────────────────────────────────────────
+const round1 = (n) => Math.round(n * 10) / 10;
+
+function runsBetween(sessions, startStr, endStr) {
+  return (sessions || []).filter(
+    (s) => s.type === 'run' && s.date >= startStr && s.date <= endStr);
+}
+
+export function weeklyReport({ checks = {}, sessions = [], steps = {}, essentialIds = [] }, weekStartStr) {
+  const start = parseLocalDate(weekStartStr);
+  const days = Array.from({ length: 7 }, (_, i) => toDateStr(addDays(start, i)));
+  const endStr = days[6];
+  const prevStart = toDateStr(addDays(start, -7));
+  const prevEnd = toDateStr(addDays(start, -1));
+
+  const runs = runsBetween(sessions, weekStartStr, endStr);
+  const prevRuns = runsBetween(sessions, prevStart, prevEnd);
+
+  const best = runs.length ? Math.max(...runs.map(painFreeKm)) : 0;
+  const prevBest = prevRuns.length ? Math.max(...prevRuns.map(painFreeKm)) : 0;
+
+  const stepDays = days.map((d) => steps[d]).filter((n) => Number.isFinite(n));
+  const avgSteps = stepDays.length
+    ? Math.round(stepDays.reduce((a, b) => a + b, 0) / stepDays.length)
+    : 0;
+
+  const essentialDone = days.filter((d) => {
+    const list = checks[d];
+    return Array.isArray(list) && essentialIds.every((id) => list.includes(id));
+  }).length;
+
+  return {
+    essentialDone,
+    essentialTarget: 7,
+    runCount: runs.length,
+    totalKm: round1(runs.reduce((sum, s) => sum + (Number(s.distanceKm) || 0), 0)),
+    bestPainFreeKm: round1(best),
+    prevBestPainFreeKm: round1(prevBest),
+    delta: round1(best - prevBest),
+    avgSteps,
+    hasData: runs.length > 0 || essentialDone > 0 || stepDays.length > 0,
+  };
+}
