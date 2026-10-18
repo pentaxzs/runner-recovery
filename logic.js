@@ -66,3 +66,47 @@ export function calcStreak(checks, essentialIds, today) {
   }
   return streak;
 }
+
+// ── 사다리 진행 ──────────────────────────────────────────────
+
+// 통증이 없었다면 "그날 뛴 거리까지는 괜찮았다"는 하한값으로 쓴다.
+// painOnsetKm만 쓰면 가장 잘 풀린 날 그래프에 구멍이 뚫린다.
+export function painFreeKm(session) {
+  if (!session) return 0;
+  if (session.hadPain && Number.isFinite(session.painOnsetKm)) return session.painOnsetKm;
+  return Number.isFinite(session.distanceKm) ? session.distanceKm : 0;
+}
+
+export function nextLevel(currentLevel, runSessions, ladderLength) {
+  const runs = (runSessions || []).filter((s) => s.type === 'run');
+  if (runs.length === 0) return { level: currentLevel, reason: '기록 없음', paused: false };
+
+  const last3 = runs.slice(-3);
+  if (last3.length === 3 && last3.every((s) => s.hadPain)) {
+    return {
+      level: Math.max(1, currentLevel - 1),
+      reason: '통증 3회 연속 — 2주 중단 권장',
+      paused: true,
+    };
+  }
+
+  const last = runs[runs.length - 1];
+  if (last.hadPain) {
+    return {
+      level: Math.max(1, currentLevel - 1),
+      reason: '통증 발생 — 한 단계 내립니다',
+      paused: false,
+    };
+  }
+
+  const last2 = runs.slice(-2);
+  if (last2.length === 2 && last2.every((s) => !s.hadPain)) {
+    return {
+      level: Math.min(ladderLength, currentLevel + 1),
+      reason: '통증 없이 2회 연속 — 한 단계 올립니다',
+      paused: false,
+    };
+  }
+
+  return { level: currentLevel, reason: '한 번 더 통증 없이 끝내면 올립니다', paused: false };
+}
