@@ -13,10 +13,10 @@
   --ok-soft: #ecfdf5;
   --warn: #dc2626;
   --warn-soft: #fef2f2;
-  --radius: 18px;
-  --radius-sm: 12px;
+  --radius: 0px;
+  --radius-sm: 0px;
   --gap: 16px;
-  --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+  --shadow: none;
   --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard,
     "Noto Sans KR", system-ui, sans-serif;
 }
@@ -35,7 +35,7 @@
     --ok-soft: #10291f;
     --warn: #f87171;
     --warn-soft: #2b1414;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    --shadow: none;
   }
 }
 
@@ -52,7 +52,7 @@
   --ok-soft: #10291f;
   --warn: #f87171;
   --warn-soft: #2b1414;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  --shadow: none;
 }
 
 * { box-sizing: border-box; }
@@ -213,7 +213,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   font-weight: 800;
   color: var(--brand);
   background: var(--brand-soft);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 4px 8px;
 }
 .mission .txt { font-size: 14px; }
@@ -224,7 +224,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   font-size: 11px;
   font-weight: 800;
   padding: 4px 9px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--brand-soft);
   color: var(--brand);
 }
@@ -236,7 +236,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   min-height: 40px;
   padding: 8px 14px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--surface);
   color: var(--muted);
   font: inherit;
@@ -365,7 +365,7 @@ input[type="range"] { width: 100%; accent-color: var(--brand); }
   max-height: 88vh;
   overflow-y: auto;
   background: var(--bg);
-  border-radius: 22px 22px 0 0;
+  border-radius: 0;
   padding: var(--gap);
   padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
 }
@@ -422,7 +422,7 @@ input[type="range"] { width: 100%; accent-color: var(--brand); }
 .kv .v { font-weight: 800; }
 
 .steps { display: flex; align-items: flex-end; gap: 3px; height: 44px; margin-top: 6px; }
-.steps .bar { flex: 1; background: var(--brand); border-radius: 2px; min-height: 2px; opacity: .55; }
+.steps .bar { flex: 1; background: var(--brand); border-radius: 0; min-height: 2px; opacity: .55; }
 
 ol.howto { margin: 8px 0 0; padding-left: 20px; font-size: 13px; }
 ol.howto li { margin: 6px 0; }
@@ -431,7 +431,7 @@ code.url {
   word-break: break-all;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px;
   font-size: 12px;
   margin-top: 8px;
@@ -472,7 +472,7 @@ ul.bullets li { margin: 4px 0; }
   min-width: 42px;
   text-align: center;
   background: rgba(255, 255, 255, .22);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 1px 0;
   opacity: 1;
 }
@@ -537,7 +537,7 @@ ul.bullets li { margin: 4px 0; }
   flex: none;
   width: 20px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--brand);
   color: #fff;
   font-size: 11px;
@@ -554,7 +554,7 @@ ul.bullets li { margin: 4px 0; }
 .carousel .dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--border);
   transition: background .15s, width .15s;
 }
@@ -684,3 +684,76 @@ main { touch-action: pan-y; }
   gap: 2px;
 }
 .act-btn .ld { font-size: 10px; font-weight: 800; color: var(--warn); }
+
+/* ── 각진 체크박스 ──────────────────────────────────── */
+/* 브라우저 기본 체크박스는 모서리가 둥글어 appearance를 끄고 직접 그린다. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin: 2px 0 0;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  border-radius: 0;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+input[type="checkbox"]::before {
+  content: "";
+  width: 12px;
+  height: 7px;
+  border-left: 3px solid var(--surface);
+  border-bottom: 3px solid var(--surface);
+  transform: translateY(-2px) rotate(-45deg);
+  opacity: 0;
+}
+input[type="checkbox"]:checked {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+input[type="checkbox"]:checked::before { opacity: 1; }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.inline-check input[type="checkbox"] { width: 22px; height: 22px; margin: 0; }
+
+/* ── 헤더 글리프 ────────────────────────────────────── */
+.title-row { display: flex; align-items: center; gap: 8px; }
+.glyph {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  color: var(--brand);
+  display: block;
+}
+
+/* ── 당겨서 새로고침 ────────────────────────────────── */
+body { overscroll-behavior-y: contain; }
+#ptr {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 2px solid var(--brand);
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 800;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+#ptr .bar {
+  width: 56px;
+  height: 4px;
+  background: var(--border);
+}
+#ptr .bar i { display: block; height: 100%; width: 0; background: var(--brand); }
+#ptr.spin .bar i { width: 100% !important; animation: ptrPulse .7s linear infinite; }
+@keyframes ptrPulse { 50% { opacity: .35; } }

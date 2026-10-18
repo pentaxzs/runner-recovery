@@ -5,11 +5,13 @@ import {
   ACTIVITIES, ACTIVITY_LABELS, HIGH_LOAD_IDS,
 } from './data.js';
 import { ILLUSTRATIONS } from './illustrations.js';
+import { randomGlyph } from './glyphs.js';
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
   weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
-  startingLevel, swipeIntent, adjacentTab, escapeHtml,
+  startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
+  escapeHtml,
 } from './logic.js';
 
 const store = createStore();
@@ -993,6 +995,64 @@ function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
 
+// ── 헤더 글리프 ─────────────────────────────────────────────
+// 날짜 시드가 아니라 진짜 무작위. 새로고침마다 바뀌어야 재미가 있다.
+function renderHeaderGlyph() {
+  const slot = document.getElementById('headerGlyph');
+  const g = randomGlyph();
+  if (!slot || !g) return;
+  slot.innerHTML = g.svg;
+  slot.setAttribute('title', g.title);
+}
+
+// ── 당겨서 새로고침 ─────────────────────────────────────────
+function bindPullToRefresh() {
+  const bar = document.getElementById('ptr');
+  const fill = bar.querySelector('.bar i');
+  const text = document.getElementById('ptrText');
+  let y0 = 0, pulling = false, armed = false;
+
+  const reset = () => {
+    bar.style.transform = 'translateY(-100%)';
+    bar.classList.remove('spin');
+    fill.style.width = '0';
+    text.textContent = '당겨서 새로고침'; // 남겨두면 다음 당김에 옛 문구가 번쩍인다
+    pulling = false;
+    armed = false;
+  };
+
+  document.addEventListener('touchstart', (e) => {
+    // 맨 위에서만, 모달이 없을 때만. 모달 중 새로고침은 입력을 날린다.
+    if (e.touches.length !== 1) return;
+    if (window.scrollY > 0) return;
+    if (document.getElementById('modal-root').firstChild) return;
+    y0 = e.touches[0].clientY;
+    pulling = true;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - y0;
+    const p = pullProgress(dy, PULL_THRESHOLD);
+    if (p === 0) { reset(); return; }
+    armed = shouldRefresh(dy, PULL_THRESHOLD);
+    bar.style.transform = `translateY(${-100 + p * 100}%)`;
+    fill.style.width = `${p * 100}%`;
+    text.textContent = armed ? '놓으면 새로고침' : '당겨서 새로고침';
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    if (!pulling) return;
+    if (!armed) { reset(); return; }
+    bar.style.transform = 'translateY(0)';
+    bar.classList.add('spin');
+    text.textContent = '새로고침 중…';
+    location.reload();
+  }, { passive: true });
+
+  window.addEventListener('pageshow', reset);
+}
+
 // ── 탭 스와이프 ─────────────────────────────────────────────
 // 캐러셀 같은 가로 스크롤 영역 안에서 시작한 제스처는 그쪽이 먹어야 한다.
 function startedInsideScroller(target) {
@@ -1076,7 +1136,9 @@ document.querySelectorAll('.tabbar button').forEach((b) => {
 });
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
+renderHeaderGlyph();
 bindTabSwipe();
+bindPullToRefresh();
 absorbStepsParam();
 maybeShowInstallHint();
 registerServiceWorker();

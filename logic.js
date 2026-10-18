@@ -365,3 +365,15 @@ export function adjacentTab(tabs, current, intent) {
   const j = intent === 'next' ? i + 1 : i - 1;
   return j >= 0 && j < tabs.length ? tabs[j] : null; // 끝에서 순환하지 않는다
 }
+
+// ── 당겨서 새로고침 ─────────────────────────────────────────
+export const PULL_THRESHOLD = 72;
+
+export function pullProgress(dy, threshold = PULL_THRESHOLD) {
+  if (!(dy > 0)) return 0; // 위로 미는 건 평범한 스크롤
+  return Math.min(1, dy / threshold);
+}
+
+export function shouldRefresh(dy, threshold = PULL_THRESHOLD) {
+  return dy >= threshold;
+}
