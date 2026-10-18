@@ -326,8 +326,12 @@ export function mealChecksFor(dateStr, weekday, weekend) {
 }
 
 // ── 체중 추이 ───────────────────────────────────────────────
+// windowDays가 없으면 전체 기록을 본다. 체성분은 '시작 대비'로 읽기 때문에
+// 창을 자르면 기준점이 매주 밀려서 변화가 사라져 보인다.
 export function metricTrend(series, today, windowDays) {
-  const from = toDateStr(addDays(parseLocalDate(today), -(windowDays - 1)));
+  const from = Number.isFinite(windowDays)
+    ? toDateStr(addDays(parseLocalDate(today), -(windowDays - 1)))
+    : '';
   const entries = Object.entries(series || {})
     .filter(([d, v]) => d >= from && d <= today && Number.isFinite(v))
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
@@ -523,15 +527,30 @@ export function bestPainFreeIn(sessions, fromStr, toStr) {
 }
 
 // ── 체성분 ──────────────────────────────────────────────────
-// 대한비만학회·WHO 아시아태평양 기준의 남성 복부비만 허리둘레 컷오프.
-// 체지방률보다 허리둘레를 앞세우는 이유: 체성분계의 체지방률은 수분 상태에
-// 따라 하루에도 1%씩 흔들리는데, 허리둘레는 줄자 하나로 훨씬 안정적이다.
-export const WAIST_CUTOFF_M = 90;
+// 인바디 결과지에서 받아 적는 숫자는 체중·골격근량·체지방량 셋뿐이다.
+// BMI와 체지방률도 찍혀 나오지만 둘 다 계산값이라 두 번 적을 이유가 없다.
+//
+// 복부지방을 직접 재는 항목(내장지방면적·레벨)은 이 기기에 없다. 그래서
+// 체지방량을 대리 지표로 쓴다 — 복부를 따로 읽어주지는 못한다는 뜻이다.
 
-export function waistNote(cm) {
-  if (!Number.isFinite(cm)) return null;
-  const diff = Math.round(Math.abs(cm - WAIST_CUTOFF_M) * 10) / 10;
-  return { over: cm > WAIST_CUTOFF_M, diff, cutoff: WAIST_CUTOFF_M };
+// 생체전기저항은 수분 상태에 흔들린다. 주 1회 같은 조건으로 재도 이 정도는
+// 움직이므로, 그 아래의 변화를 변화라고 부르면 없는 신호를 쫓게 된다.
+export const BODY_NOISE_KG = 0.3;
+
+export function bodyFatPercent(fatKg, weightKg) {
+  if (!Number.isFinite(fatKg) || !Number.isFinite(weightKg) || weightKg <= 0) return null;
+  return round1((fatKg / weightKg) * 100);
+}
+
+// 체지방량이 추세선, 골격근량이 대조군. 체중 하나로는 빠진 게 지방인지
+// 근육인지 구분할 수 없어서 두 줄을 같이 본다.
+export function bodyVerdict(fat, muscle) {
+  if (!fat || fat.count < 2) return null;
+
+  const muscleDown = !!muscle && muscle.count >= 2 && muscle.delta <= -BODY_NOISE_KG;
+  if (fat.delta <= -BODY_NOISE_KG) return muscleDown ? 'fat-down-muscle-down' : 'fat-down';
+  if (fat.delta >= BODY_NOISE_KG) return 'fat-up';
+  return 'flat';
 }
 
 export function countCheckDays(checks, id, dates) {

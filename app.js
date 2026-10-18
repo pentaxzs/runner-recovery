@@ -13,7 +13,7 @@ import {
   startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
-  countCheckDays, waistNote, WAIST_CUTOFF_M,
+  countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
   escapeHtml,
 } from './logic.js';
 
@@ -32,8 +32,8 @@ const PAUSE_DAYS = 14;
 const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
 
 const getWeights = () => store.get('weights', {});
-const getWaist = () => store.get('waist', {});
-const getBodyFat = () => store.get('bodyfat', {});
+const getMuscle = () => store.get('muscle', {});
+const getFatMass = () => store.get('fatmass', {});
 const mealsToday = (dateStr) => mealChecksFor(dateStr, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
 const lightSets = (sets) => Math.max(2, Math.round(sets * LIGHT_FACTOR));
 let stepsError = null; // 단축어가 보낸 값을 못 읽었을 때 화면에 띄운다
@@ -408,7 +408,7 @@ function openSettings() {
     modal.querySelector('#stReset').addEventListener('click', () => {
       if (!confirm('모든 기록을 지웁니다. 계속할까요?')) return;
       if (!confirm('정말 지웁니다. 되돌릴 수 없습니다.')) return;
-      for (const k of ['checks', 'sessions', 'steps', 'weights', 'waist', 'bodyfat', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
+      for (const k of ['checks', 'sessions', 'steps', 'weights', 'muscle', 'fatmass', 'waist', 'bodyfat', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
         store.remove(k);
       }
       closeModal();
@@ -515,10 +515,10 @@ function renderHome() {
   // 복부지방 — 행동(식사)과 측정값을 한 카드에
   const mealDates = lastNDays(today, 30).filter((d) => !settings.startedAt || d >= settings.startedAt);
   const mLate = countCheckDays(checks, 'm-late', mealDates);
-  const wT = metricTrend(getWeights(), today, 56);
-  const waistT = metricTrend(getWaist(), today, 56);
-  const fatT = metricTrend(getBodyFat(), today, 56);
-  const wNote = waistNote(waistT.latest);
+  const wT = metricTrend(getWeights(), today, null);
+  const fatT = metricTrend(getFatMass(), today, null);
+  const muscleT = metricTrend(getMuscle(), today, null);
+  const note = bodyNote(bodyVerdict(fatT, muscleT), fatT, muscleT);
 
   // 8주 통증 추이
   const from8w = toDateStr(addDays(parseLocalDate(today), -55));
@@ -586,17 +586,11 @@ function renderHome() {
           `<span class="gslot${(checks[d] || []).includes('m-late') ? ' on' : ''}"></span>`).join('')}
       </div>
       <div style="margin-top:12px">
-        ${metricRow('허리둘레', waistT, 'cm', true)}
-        ${metricRow('체지방률', fatT, '%', true)}
+        ${metricRow('체지방량', fatT, 'kg', true)}
+        ${metricRow('골격근량', muscleT, 'kg', false)}
         ${metricRow('체중', wT, 'kg', true)}
       </div>
-      ${wNote ? `
-        <div class="block ${wNote.over ? 'warn' : 'ok'}">
-          <div class="muted">복부비만 기준(남성 ${WAIST_CUTOFF_M}cm) ${wNote.over ? '초과' : '이하'} ${wNote.diff}cm</div>
-        </div>` : `
-        <div class="block plain">
-          <div class="muted">허리둘레를 기록하면 추이가 보입니다. 기록 탭 → 체성분 → 측정값 기록.</div>
-        </div>`}
+      <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
     </div>
 
     <div class="card">
@@ -732,54 +726,73 @@ function metricRow(label, trend, unit, lowerIsBetter) {
     </div>`;
 }
 
+// 체지방량 kg에는 90cm 같은 임상 기준선이 없다. 숫자 옆에서 '이게 좋은 쪽인가'를
+// 말해주는 건 자기 첫 측정값과, 근육이 같이 빠지고 있는지 여부뿐이다.
+function bodyNote(verdict, fat, muscle) {
+  const d = (t) => Math.abs(t.delta);
+  switch (verdict) {
+    case 'fat-down':
+      return { tone: 'ok', text: `시작 이후 체지방량 ${d(fat)}kg 감소. 골격근량은 지키고 있습니다.` };
+    case 'fat-down-muscle-down':
+      return { tone: 'warn', text: `체지방량이 ${d(fat)}kg 줄었지만 골격근량도 ${d(muscle)}kg 줄었습니다. 단백질과 근력 운동을 늘릴 때입니다.` };
+    case 'fat-up':
+      return { tone: 'warn', text: `시작 이후 체지방량 ${d(fat)}kg 증가. 21시 이후 간식부터 다시 잡아보세요.` };
+    case 'flat':
+      return { tone: 'plain', text: `측정 오차(±${BODY_NOISE_KG}kg) 안에서 움직이는 중입니다. 몇 주 더 봐야 추세가 나옵니다.` };
+    default:
+      return { tone: 'plain', text: '인바디 결과를 2회 이상 기록하면 추이가 보입니다. 기록 탭 → 체성분.' };
+  }
+}
+
 function renderBodyCard() {
   const today = todayStr();
-  const w = metricTrend(getWeights(), today, 56);
-  const waist = metricTrend(getWaist(), today, 56);
-  const fat = metricTrend(getBodyFat(), today, 56);
-  const note = waistNote(waist.latest);
+  const w = metricTrend(getWeights(), today, null);
+  const fat = metricTrend(getFatMass(), today, null);
+  const muscle = metricTrend(getMuscle(), today, null);
+  const note = bodyNote(bodyVerdict(fat, muscle), fat, muscle);
+  const pct = bodyFatPercent(fat.latest, w.latest);
 
   return `
     <div class="card">
-      <h3>체성분</h3>
+      <h3>체성분 <span class="muted" style="font-weight:600">· 주 1회 인바디</span></h3>
       <p class="muted" style="margin:4px 0 0;font-size:12px">
-        복부지방은 허리둘레가 가장 정직한 지표입니다. 체성분계의 체지방률은
-        수분 상태에 따라 하루에도 흔들립니다.
+        체지방량이 추세선, 골격근량이 대조군입니다. 체중 하나로는 빠진 게
+        지방인지 근육인지 구분할 수 없습니다.
       </p>
       <div style="margin-top:8px">
+        ${metricRow('체지방량', fat, 'kg', true)}
+        ${metricRow('골격근량', muscle, 'kg', false)}
         ${metricRow('체중', w, 'kg', true)}
-        ${metricRow('허리둘레', waist, 'cm', true)}
-        ${metricRow('체지방률', fat, '%', true)}
+        ${pct !== null
+          ? `<div class="kv"><span class="k">체지방률 <span class="muted">· 계산값</span></span><span class="v">${pct}%</span></div>`
+          : ''}
       </div>
-      ${note ? `
-        <div class="block ${note.over ? 'warn' : 'ok'}">
-          <div class="muted">${note.over
-            ? `복부비만 기준(남성 ${WAIST_CUTOFF_M}cm)보다 ${note.diff}cm 위입니다.`
-            : `복부비만 기준(남성 ${WAIST_CUTOFF_M}cm)보다 ${note.diff}cm 아래입니다.`}</div>
-        </div>` : ''}
-      ${waist.count >= 2 ? sparkline(waist.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
-      <button class="btn btn-sm" id="bodyBtn" type="button" style="width:100%;margin-top:10px">측정값 기록</button>
+      <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
+      ${fat.count >= 2 ? sparkline(fat.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
+      <button class="btn btn-sm" id="bodyBtn" type="button" style="width:100%;margin-top:10px">인바디 결과 입력</button>
     </div>`;
 }
 
 function openBodyModal() {
   const today = todayStr();
   const w = getWeights()[today];
-  const wa = getWaist()[today];
-  const bf = getBodyFat()[today];
+  const mu = getMuscle()[today];
+  const fm = getFatMass()[today];
 
   openModal(`
     <p class="muted" style="margin:0 0 14px">비워둔 항목은 저장하지 않습니다.</p>
     <label class="field"><span>체중 (kg)</span>
       <input type="text" inputmode="decimal" id="bmW" placeholder="예: 73.1" value="${Number.isFinite(w) ? w : ''}"></label>
-    <label class="field"><span>허리둘레 (cm)</span>
-      <input type="text" inputmode="decimal" id="bmWaist" placeholder="예: 86.5" value="${Number.isFinite(wa) ? wa : ''}"></label>
-    <label class="field"><span>체지방률 (%)</span>
-      <input type="text" inputmode="decimal" id="bmFat" placeholder="예: 22.4" value="${Number.isFinite(bf) ? bf : ''}"></label>
+    <label class="field"><span>골격근량 (kg)</span>
+      <input type="text" inputmode="decimal" id="bmMuscle" placeholder="예: 32.4" value="${Number.isFinite(mu) ? mu : ''}"></label>
+    <label class="field"><span>체지방량 (kg)</span>
+      <input type="text" inputmode="decimal" id="bmFat" placeholder="예: 18.6" value="${Number.isFinite(fm) ? fm : ''}"></label>
     <div class="block plain">
-      <div class="bt">허리둘레 재는 법</div>
-      <div class="muted">숨을 내쉰 상태에서, 갈비뼈 아래와 골반뼈 위의 중간 높이를
-        줄자가 바닥과 나란하게. 배를 집어넣지 마세요. 매번 같은 시간대에 재야 비교가 됩니다.</div>
+      <div class="bt">주 1회, 같은 조건으로</div>
+      <div class="muted">생체전기저항은 수분 상태에 흔들립니다. 같은 요일·같은 시간,
+        공복에 운동 전으로 고정해야 주간 변화가 측정 오차보다 커집니다.
+        체지방률과 BMI는 적지 않아도 됩니다 — 위 숫자에서 계산됩니다.</div>
     </div>
     <div id="bmMsg"></div>
   `, (modal) => {
@@ -791,7 +804,7 @@ function openBodyModal() {
     };
     modal.querySelector('#bmCancel').addEventListener('click', closeModal);
     modal.querySelector('#bmSave').addEventListener('click', () => {
-      const vals = { w: num('#bmW', 20, 250), waist: num('#bmWaist', 40, 200), fat: num('#bmFat', 3, 70) };
+      const vals = { w: num('#bmW', 20, 250), muscle: num('#bmMuscle', 5, 100), fat: num('#bmFat', 1, 150) };
       if (Object.values(vals).some((v) => v === null)) {
         modal.querySelector('#bmMsg').innerHTML =
           '<div class="block warn" style="margin-top:10px"><div class="muted">숫자 범위를 확인해주세요.</div></div>';
@@ -804,8 +817,8 @@ function openBodyModal() {
         store.set(key, map);
       };
       put('weights', getWeights, vals.w);
-      put('waist', getWaist, vals.waist);
-      put('bodyfat', getBodyFat, vals.fat);
+      put('muscle', getMuscle, vals.muscle);
+      put('fatmass', getFatMass, vals.fat);
       closeModal();
       renderLog();
       if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
