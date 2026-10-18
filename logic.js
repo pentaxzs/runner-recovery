@@ -89,6 +89,9 @@ function cleanRunsAtLevel(runs, level) {
   for (let i = runs.length - 1; i >= 0; i--) {
     const s = runs[i];
     if (s.hadPain || s.level !== level) break;
+    // 가볍게 한 날은 세지 않는다 — 줄인 볼륨으로 올라가면 사다리가 거짓말을 한다.
+    // 다만 그 앞의 기록을 무효로 만들지도 않으므로 break가 아니라 continue.
+    if (s.light) continue;
     n++;
   }
   return n;
@@ -292,4 +295,55 @@ export function chartPoints(sessions, width, height) {
   });
 
   return { points, maxKm, minKm };
+}
+
+
+// ── 식사 ────────────────────────────────────────────────────
+// 미션과 같은 시드를 쓰면 둘이 항상 붙어 움직인다. salt로 떼어놓는다.
+const TIP_SALT = 'meal:';
+
+export function pickTip(pool, dateStr) {
+  if (!Array.isArray(pool) || pool.length === 0) return null;
+  const rand = mulberry32(dateSeed(TIP_SALT + dateStr));
+  return pool[Math.floor(rand() * pool.length)];
+}
+
+export function mealChecksFor(dateStr, weekday, weekend) {
+  const day = parseLocalDate(dateStr).getDay();
+  return day === 0 || day === 6 ? weekend : weekday;
+}
+
+// ── 체중 추이 ───────────────────────────────────────────────
+export function weightTrend(weights, today, windowDays) {
+  const from = toDateStr(addDays(parseLocalDate(today), -(windowDays - 1)));
+  const entries = Object.entries(weights || {})
+    .filter(([d, v]) => d >= from && d <= today && Number.isFinite(v))
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+
+  if (entries.length === 0) return { latest: null, first: null, delta: 0, count: 0, entries: [] };
+  const first = entries[0][1];
+  const latest = entries[entries.length - 1][1];
+  return {
+    latest,
+    first,
+    delta: Math.round((latest - first) * 10) / 10,
+    count: entries.length,
+    entries: entries.map(([date, kg]) => ({ date, kg })),
+  };
+}
+
+// ── 시작 단계 ───────────────────────────────────────────────
+// 통증 시작 거리의 80%를 목표로 잡되 상한을 둔다. 사다리는 통증 없이 2회면
+// 올라가므로 낮게 시작해도 1~2주 손해지만, 높게 시작했다가 재발하면 몇 주를 잃는다.
+export const MAX_START_LEVEL = 2;
+
+export function startingLevel(painKm, ladder) {
+  const km = Number(painKm);
+  if (!Number.isFinite(km) || km <= 0) return 1;
+  const target = km * 0.8;
+  let level = 1;
+  for (let i = ladder.length - 1; i >= 0; i--) {
+    if (ladder[i].approxKm <= target) { level = ladder[i].level; break; }
+  }
+  return Math.min(level, MAX_START_LEVEL);
 }

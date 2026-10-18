@@ -1,9 +1,14 @@
 import { createStore } from './store.js';
-import { TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABELS } from './data.js';
+import {
+  TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABELS,
+  WARMUP_MIN, COOLDOWN_MIN, MEAL_TIPS, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND,
+} from './data.js';
+import { ILLUSTRATIONS } from './illustrations.js';
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
-  weeklyReport, chartPoints, nextStepHint, escapeHtml,
+  weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
+  startingLevel, escapeHtml,
 } from './logic.js';
 
 const store = createStore();
@@ -18,6 +23,11 @@ const DEFAULT_SETTINGS = {
   painOnsetKm: 0, runLevel: 1, runDays: [2, 4], startedAt: null, pausedUntil: null,
 };
 const PAUSE_DAYS = 14;
+const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
+
+const getWeights = () => store.get('weights', {});
+const mealsToday = (dateStr) => mealChecksFor(dateStr, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
+const lightSets = (sets) => Math.max(2, Math.round(sets * LIGHT_FACTOR));
 
 // ── 상태 접근 ────────────────────────────────────────────────
 const getSettings = () => ({ ...DEFAULT_SETTINGS, ...store.get('settings', {}) });
@@ -127,16 +137,11 @@ function renderOnboarding(root) {
 
   startBtn.addEventListener('click', () => {
     const km = Number(root.querySelector('#obPain').value) || 0;
-    // 목표는 통증 시작 거리의 80%. 그 아래로 가장 가까운 칸에서 시작한다.
-    let level = 1;
-    if (km > 0) {
-      const target = km * 0.8;
-      for (let i = RUN_LADDER.length - 1; i >= 0; i--) {
-        if (RUN_LADDER[i].approxKm <= target) { level = RUN_LADDER[i].level; break; }
-      }
-    }
     store.set('settings', {
-      painOnsetKm: km, runLevel: level, runDays: days, startedAt: todayStr(),
+      painOnsetKm: km,
+      runLevel: startingLevel(km, RUN_LADDER),
+      runDays: days,
+      startedAt: todayStr(),
     });
     renderToday();
   });
@@ -144,6 +149,40 @@ function renderOnboarding(root) {
 
 // ── 가이드 탭 ───────────────────────────────────────────────
 let guideFilter = 'all';
+
+// 그림은 스와이프로 넘긴다. 라이브러리 없이 CSS scroll-snap만 쓴다.
+function renderCarousel(taskId) {
+  const frames = ILLUSTRATIONS[taskId];
+  if (!frames || frames.length === 0) return '';
+  return `
+    <div class="carousel" data-carousel="${taskId}">
+      <div class="track">
+        ${frames.map((f, i) => `
+          <figure class="slide">
+            <div class="ill-box">${f.svg}</div>
+            <figcaption><span class="step-n">${i + 1}</span>${escapeHtml(f.caption)}</figcaption>
+          </figure>`).join('')}
+      </div>
+      ${frames.length > 1 ? `
+        <div class="dots">
+          ${frames.map((_, i) => `<span class="dot${i === 0 ? ' on' : ''}"></span>`).join('')}
+        </div>
+        <div class="swipe-hint">옆으로 넘겨보세요 →</div>` : ''}
+    </div>`;
+}
+
+// 스크롤 위치로 점 인디케이터를 갱신한다.
+function bindCarousels(root) {
+  root.querySelectorAll('.carousel').forEach((c) => {
+    const track = c.querySelector('.track');
+    const dots = [...c.querySelectorAll('.dot')];
+    if (dots.length === 0) return;
+    track.addEventListener('scroll', () => {
+      const i = Math.round(track.scrollLeft / track.clientWidth);
+      dots.forEach((d, n) => d.classList.toggle('on', n === i));
+    }, { passive: true });
+  });
+}
 
 function renderGuide() {
   const root = document.getElementById('tab-guide');
@@ -157,13 +196,14 @@ function renderGuide() {
       `).join('')}
     </div>
     ${items.map((t) => `
-      <details class="collapse">
+      <details class="collapse" data-task="${t.id}">
         <summary>
           <span>${escapeHtml(t.title)}</span>
           <span class="pill">${escapeHtml(TIER_LABELS[t.tier] || t.tier)}</span>
         </summary>
         <div class="body">
           <p class="muted" style="margin:0 0 4px">${escapeHtml(t.summary)}</p>
+          ${renderCarousel(t.id)}
           <div class="block plain">
             <div class="bt">언제 추천?</div>
             <div class="muted">${escapeHtml(t.when)}</div>
@@ -191,6 +231,17 @@ function renderGuide() {
   root.querySelectorAll('#guideChips button').forEach((b) => {
     b.addEventListener('click', () => { guideFilter = b.dataset.filter; renderGuide(); });
   });
+  bindCarousels(root);
+}
+
+// 필수 체크 옆 "자세히" → 가이드 탭의 해당 운동을 펼친 채로 보여준다.
+function openGuideFor(taskId) {
+  guideFilter = 'all';
+  activateTab('guide');
+  const el = document.querySelector(`#tab-guide details[data-task="${taskId}"]`);
+  if (!el) return;
+  el.open = true;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── 설정 ────────────────────────────────────────────────────
@@ -288,7 +339,7 @@ function openSettings() {
     modal.querySelector('#stReset').addEventListener('click', () => {
       if (!confirm('모든 기록을 지웁니다. 계속할까요?')) return;
       if (!confirm('정말 지웁니다. 되돌릴 수 없습니다.')) return;
-      for (const k of ['checks', 'sessions', 'steps', 'settings', 'lastTab', 'installHintDismissed']) {
+      for (const k of ['checks', 'sessions', 'steps', 'weights', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
         store.remove(k);
       }
       closeModal();
@@ -375,12 +426,57 @@ function renderWeeklyReport() {
       <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
       <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
       <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
+      ${(() => {
+        const wt = weightTrend(getWeights(), todayStr(), 7);
+        return wt.count >= 2
+          ? `<div class="kv"><span class="k">체중</span><span class="v">${wt.latest}kg ${wt.delta > 0 ? '▲' : wt.delta < 0 ? '▼' : '–'} ${Math.abs(wt.delta)}</span></div>`
+          : '';
+      })()}
       <div class="block ${hint.paused ? 'warn' : 'ok'}">
         <div class="bt">다음 주 제안</div>
         <div class="muted">${escapeHtml(hint.reason)}${hint.paused ? '' : ` · 현재 Lv${hint.level}`}</div>
       </div>
     </div>
   `;
+}
+
+function renderWeightCard() {
+  const t = weightTrend(getWeights(), todayStr(), 56);
+  const arrow = t.delta > 0 ? '▲' : t.delta < 0 ? '▼' : '–';
+  const w = 320, h = 70, pad = 8;
+
+  let chart = '<div class="empty" style="padding:12px">기록이 쌓이면 추이가 보입니다.</div>';
+  if (t.count >= 2) {
+    const kgs = t.entries.map((e) => e.kg);
+    const max = Math.max(...kgs), min = Math.min(...kgs);
+    const span = max === min ? 1 : max - min;
+    const pts = t.entries.map((e, i) => {
+      const x = (i / (t.entries.length - 1)) * w + pad;
+      const y = h - ((e.kg - min) / span) * h + pad;
+      return `${x},${y}`;
+    }).join(' ');
+    chart = `<svg class="chart" viewBox="0 0 ${w + pad * 2} ${h + pad * 2}" role="img" aria-label="체중 추이">
+      <polyline fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linejoin="round" points="${pts}"/>
+    </svg>`;
+  }
+
+  return `
+    <div class="card">
+      <h3>체중</h3>
+      <p class="muted" style="margin:4px 0 0">
+        달릴 때 무릎에는 체중의 2~3배가 걸립니다. 1kg는 한 걸음당 2~3kg입니다.
+      </p>
+      <div class="kv" style="margin-top:8px">
+        <span class="k">최근</span>
+        <span class="v">${t.latest === null ? '–' : `${t.latest}kg`}
+          ${t.count >= 2 ? `<span class="muted" style="font-weight:600">${arrow} ${Math.abs(t.delta)}</span>` : ''}</span>
+      </div>
+      ${chart}
+      <div class="btn-row" style="margin-top:10px">
+        <input type="number" id="wInput" step="0.1" min="20" max="250" placeholder="오늘 체중 (kg)">
+        <button class="btn btn-sm btn-primary" id="wSave" type="button" style="flex:none">기록</button>
+      </div>
+    </div>`;
 }
 
 function renderLog() {
@@ -397,6 +493,7 @@ function renderLog() {
       <p class="muted" style="margin:4px 0 0">선이 올라가면 회복되고 있다는 뜻입니다. 빨간 점은 통증이 있던 날입니다.</p>
       ${renderChart(sessions)}
     </div>
+    ${renderWeightCard()}
     <div class="card">
       <h3>걸음 수</h3>
       ${renderStepBars(steps) || '<div class="empty">걸음 수 기록이 없습니다.<br>설정에서 단축어를 연결하면 자동으로 쌓입니다.</div>'}
@@ -406,6 +503,22 @@ function renderLog() {
       <div id="logList" style="margin-top:4px"></div>
     </div>
   `;
+
+  const wSave = root.querySelector('#wSave');
+  if (wSave) {
+    wSave.addEventListener('click', () => {
+      const el = root.querySelector('#wInput');
+      const kg = Number(el.value);
+      if (!Number.isFinite(kg) || kg < 20 || kg > 250) {
+        alert('체중을 kg 단위로 입력해주세요.');
+        return;
+      }
+      const w = getWeights();
+      w[todayStr()] = Math.round(kg * 10) / 10;
+      store.set('weights', w);
+      renderLog();
+    });
+  }
 
   // 메모는 사용자 입력이므로 textContent로 넣는다.
   const list = root.querySelector('#logList');
@@ -519,11 +632,27 @@ export function renderToday() {
       </div>
     `);
   } else if (runToday) {
+    const lightOn = store.get('lightDay', '') === today;
+    const sets = lightOn ? lightSets(level.sets) : level.sets;
+    const isInterval = level.runMin > 0;
+    const runTotal = isInterval ? level.runMin * sets : 0;
+    const bodyMin = isInterval ? (level.runMin + level.walkMin) * sets : 0;
+
     parts.push(`
       <div class="card hero">
-        <div class="label">오늘의 한 가지 · Lv${level.level}</div>
-        <div class="title">${escapeHtml(level.label)}</div>
-        <div class="meta">약 ${level.approxKm}km${day === SUNDAY ? ' · 오후 권장' : ''}</div>
+        <div class="label">오늘의 한 가지 · Lv${level.level}${lightOn ? ' · 가볍게' : ''}</div>
+        <div class="title">${escapeHtml(isInterval ? `뛰기 ${level.runMin}분 / 걷기 ${level.walkMin}분 × ${sets}` : level.label)}</div>
+        <div class="meta">${isInterval
+          ? `실제로 뛰는 시간 ${runTotal}분 · 전체 ${WARMUP_MIN + bodyMin + COOLDOWN_MIN}분`
+          : `약 ${level.approxKm}km`}${day === SUNDAY ? ' · 오후 권장' : ''}</div>
+        ${isInterval ? `
+        <div class="timeline">
+          <div class="tl-row"><span class="tl-k">웜업</span><span>걷기 ${WARMUP_MIN}분</span></div>
+          ${Array.from({ length: sets }, (_, i) => `
+            <div class="tl-row cyc"><span class="tl-k">${i + 1}</span>
+              <span><b>뛰기 ${level.runMin}분</b> → 걷기 ${level.walkMin}분</span></div>`).join('')}
+          <div class="tl-row"><span class="tl-k">쿨다운</span><span>걷기 ${COOLDOWN_MIN}분</span></div>
+        </div>` : ''}
         <ul>${RUN_RULES.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
       </div>
     `);
@@ -542,13 +671,16 @@ export function renderToday() {
   const essentialRows = essentials.map((t) => {
     const on = todayChecks.includes(t.id);
     return `
-      <label class="check-row ${on ? 'done' : ''}">
-        <input type="checkbox" data-check="${t.id}" ${on ? 'checked' : ''}>
-        <span>
-          <span class="t">${escapeHtml(t.title)}</span><br>
-          <span class="d">${escapeHtml(t.detail)}</span>
-        </span>
-      </label>
+      <div class="check-row ${on ? 'done' : ''}">
+        <label class="check-hit">
+          <input type="checkbox" data-check="${t.id}" ${on ? 'checked' : ''}>
+          <span>
+            <span class="t">${escapeHtml(t.title)}</span><br>
+            <span class="d">${escapeHtml(t.detail)}</span>
+          </span>
+        </label>
+        <button type="button" class="howto-link" data-guide="${t.id}">자세히</button>
+      </div>
     `;
   }).join('');
 
@@ -580,6 +712,34 @@ export function renderToday() {
       </div>
     `);
   }
+
+  // 4b. 식사
+  const meals = mealsToday(today);
+  const tip = pickTip(MEAL_TIPS, today);
+  const mealDone = meals.filter((m) => todayChecks.includes(m.id)).length;
+  parts.push(`
+    <div class="card">
+      <h3>식사 <span class="muted" style="font-weight:600">· ${mealDone}/${meals.length}</span></h3>
+      <div style="margin-top:6px">
+        ${meals.map((m) => {
+          const on = todayChecks.includes(m.id);
+          return `
+            <label class="check-row ${on ? 'done' : ''}">
+              <input type="checkbox" data-check="${m.id}" ${on ? 'checked' : ''}>
+              <span>
+                <span class="t">${escapeHtml(m.text)}</span><br>
+                <span class="d">${escapeHtml(m.hint)}</span>
+              </span>
+            </label>`;
+        }).join('')}
+      </div>
+      ${tip ? `
+        <div class="block ${tip.kind === 'avoid' ? 'warn' : 'ok'}">
+          <div class="bt">${tip.kind === 'avoid' ? '조심' : '오늘의 식사 팁'}</div>
+          <div class="muted">${escapeHtml(tip.text)}</div>
+        </div>` : ''}
+    </div>
+  `);
 
   // 5. 접힌 권장 / 회복
   for (const tier of ['recommended', 'recovery']) {
@@ -622,6 +782,15 @@ export function renderToday() {
             ${ranToday ? '러닝 한 번 더 기록' : '오늘 러닝 기록하기'}
           </button>
         </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" id="lightBtn" type="button" style="width:100%">
+            ${store.get('lightDay', '') === today ? '· 원래 계획으로 되돌리기' : '오늘은 가볍게 (세트 줄이기)'}
+          </button>
+        </div>
+        <p class="muted" style="margin:8px 0 0;font-size:12px">
+          하기 싫은 날 0으로 끝내는 것보단 낫습니다. 가볍게 한 날은 승급에는 안 세고,
+          통증이 나오면 단계는 그대로 내려갑니다.
+        </p>
       </div>
     `);
   }
@@ -658,6 +827,18 @@ export function renderToday() {
 
   const runBtn = root.querySelector('#logRunBtn');
   if (runBtn) runBtn.addEventListener('click', openRunModal);
+
+  const lightBtn = root.querySelector('#lightBtn');
+  if (lightBtn) {
+    lightBtn.addEventListener('click', () => {
+      store.set('lightDay', store.get('lightDay', '') === today ? '' : today);
+      renderToday();
+    });
+  }
+
+  root.querySelectorAll('[data-guide]').forEach((b) => {
+    b.addEventListener('click', () => openGuideFor(b.dataset.guide));
+  });
 
   const golfBtn = root.querySelector('#logGolfBtn');
   if (golfBtn) {

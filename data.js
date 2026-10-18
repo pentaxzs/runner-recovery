@@ -70,6 +70,48 @@ export const TASKS = [
     tips: ['통증이 있으면 단 높이를 낮추세요.'],
   },
   {
+    id: 'deadbug', tier: 'recommended', contexts: ['home'],
+    title: '데드버그', detail: '좌우 번갈아 10회 × 2세트',
+    summary: '허리를 바닥에 붙인 채 팔다리를 뻗어 몸통이 버티게 합니다.',
+    when: '달릴 때 상체가 흔들리거나 후반에 자세가 무너질 때',
+    how: [
+      '누워서 무릎과 고관절을 90도로 들어 올립니다.',
+      '허리를 바닥에 붙인 채 반대쪽 팔과 다리를 천천히 뻗습니다.',
+      '허리가 뜨기 직전까지만 뻗고 되돌아옵니다.',
+    ],
+    mistakes: ['허리가 바닥에서 뜨기', '숨을 참고 빠르게 휘젓기'],
+    tips: [
+      '몸통이 버티면 골반이 덜 떨어지고, 그만큼 장경인대 부하가 줍니다.',
+      '복부 운동으로 뱃살이 빠지지는 않습니다. 이건 안정성 운동입니다.',
+    ],
+  },
+  {
+    id: 'birddog', tier: 'recommended', contexts: ['home'],
+    title: '버드독', detail: '좌우 번갈아 10회 × 2세트',
+    summary: '네발 자세에서 반대쪽 팔다리를 뻗어 둔근과 몸통을 함께 씁니다.',
+    when: '엉덩이와 몸통을 한 번에 쓰고 싶을 때',
+    how: [
+      '네발 자세에서 손은 어깨 아래, 무릎은 골반 아래에 둡니다.',
+      '한쪽 팔과 반대쪽 다리를 바닥과 나란해질 때까지 뻗습니다.',
+      '골반이 돌아가지 않게 3초 버티고 바꿉니다.',
+    ],
+    mistakes: ['골반이 한쪽으로 돌아가기', '다리를 너무 높이 들어 허리를 젖히기'],
+    tips: ['허리 위에 물컵을 올렸다고 생각하고 수평을 유지하세요.'],
+  },
+  {
+    id: 'plank', tier: 'recommended', contexts: ['home'],
+    title: '프론트 플랭크', detail: '20~40초 × 2세트',
+    summary: '팔꿈치로 버티며 몸통 전체가 한 판처럼 유지되게 합니다.',
+    when: '코어 기본기를 짧게 채우고 싶을 때',
+    how: [
+      '팔꿈치를 어깨 아래 두고 엎드립니다.',
+      '엉덩이를 조여 머리-골반-발꿈치를 일직선으로 만듭니다.',
+      '호흡을 유지하며 버팁니다.',
+    ],
+    mistakes: ['엉덩이가 솟거나 처지기', '숨을 참기'],
+    tips: ['허리가 꺾이기 시작하면 그 지점이 그날의 한계입니다. 바로 내려오세요.'],
+  },
+  {
     id: 'foam', tier: 'recovery', contexts: ['home'],
     title: '폼롤러 + 스트레칭', detail: '부위당 30~60초',
     summary: '종아리·엉덩이 긴장을 줄여 보상 움직임을 막습니다.',
@@ -118,16 +160,50 @@ export const MICRO_MISSIONS = [
 ];
 
 export const RUN_LADDER = [
-  { level: 1, runMin: 3, walkMin: 2, sets: 4, approxKm: 2.0, label: '뛰기 3분 / 걷기 2분 × 4' },
-  { level: 2, runMin: 3, walkMin: 2, sets: 5, approxKm: 2.4, label: '뛰기 3분 / 걷기 2분 × 5' },
-  { level: 3, runMin: 4, walkMin: 2, sets: 5, approxKm: 2.9, label: '뛰기 4분 / 걷기 2분 × 5' },
-  { level: 4, runMin: 5, walkMin: 2, sets: 5, approxKm: 3.4, label: '뛰기 5분 / 걷기 2분 × 5' },
-  { level: 5, runMin: 6, walkMin: 2, sets: 5, approxKm: 3.9, label: '뛰기 6분 / 걷기 2분 × 5' },
-  { level: 6, runMin: 8, walkMin: 2, sets: 4, approxKm: 4.2, label: '뛰기 8분 / 걷기 2분 × 4' },
-  { level: 7, runMin: 10, walkMin: 2, sets: 3, approxKm: 4.5, label: '뛰기 10분 / 걷기 2분 × 3' },
-  { level: 8, runMin: 0, walkMin: 0, sets: 1, approxKm: 5.0, label: '연속 러닝 5.0km' },
-  { level: 9, runMin: 0, walkMin: 0, sets: 1, approxKm: 5.5, label: '연속 러닝 5.5km' },
-  { level: 10, runMin: 0, walkMin: 0, sets: 1, approxKm: 6.1, label: '연속 러닝 6.1km' },
+  // 입구를 낮췄다. 한 번에 1분씩만 뛰면 장경인대에 누적 부하가 쌓이기 전에 끊긴다.
+  // sets는 한 세션 안에서 (뛰기/걷기) 사이클을 연속으로 반복하는 횟수.
+  { level: 1, runMin: 1, walkMin: 2, sets: 5, approxKm: 1.3, label: '뛰기 1분 / 걷기 2분 × 5' },
+  { level: 2, runMin: 1, walkMin: 2, sets: 7, approxKm: 1.8, label: '뛰기 1분 / 걷기 2분 × 7' },
+  { level: 3, runMin: 2, walkMin: 2, sets: 5, approxKm: 2.2, label: '뛰기 2분 / 걷기 2분 × 5' },
+  { level: 4, runMin: 3, walkMin: 2, sets: 4, approxKm: 2.4, label: '뛰기 3분 / 걷기 2분 × 4' },
+  { level: 5, runMin: 3, walkMin: 2, sets: 5, approxKm: 2.9, label: '뛰기 3분 / 걷기 2분 × 5' },
+  { level: 6, runMin: 4, walkMin: 2, sets: 5, approxKm: 3.4, label: '뛰기 4분 / 걷기 2분 × 5' },
+  { level: 7, runMin: 5, walkMin: 2, sets: 5, approxKm: 3.9, label: '뛰기 5분 / 걷기 2분 × 5' },
+  { level: 8, runMin: 8, walkMin: 2, sets: 4, approxKm: 4.3, label: '뛰기 8분 / 걷기 2분 × 4' },
+  { level: 9, runMin: 10, walkMin: 2, sets: 3, approxKm: 4.6, label: '뛰기 10분 / 걷기 2분 × 3' },
+  { level: 10, runMin: 0, walkMin: 0, sets: 1, approxKm: 5.0, label: '연속 러닝 5.0km' },
+  { level: 11, runMin: 0, walkMin: 0, sets: 1, approxKm: 5.5, label: '연속 러닝 5.5km' },
+  { level: 12, runMin: 0, walkMin: 0, sets: 1, approxKm: 6.1, label: '연속 러닝 6.1km' },
+];
+
+export const WARMUP_MIN = 5;
+export const COOLDOWN_MIN = 3;
+
+// 식사 체크. 칼로리가 밤으로 몰린 패턴을 앞으로 당기는 것이 목적이다.
+export const MEAL_CHECKS_WEEKDAY = [
+  { id: 'm-breakfast', text: '아침에 단백질 하나', hint: '계란 2개 · 그릭요거트 · 두유 중 아무거나' },
+  { id: 'm-lunch', text: '점심에 단백질 붙이기', hint: '김밥만 먹으면 거의 탄수화물입니다' },
+  { id: 'm-late', text: '21시 이후 간식 없음', hint: '복부지방에 가장 큰 레버' },
+];
+
+export const MEAL_CHECKS_WEEKEND = [
+  { id: 'm-dinner', text: '저녁 과식하지 않기', hint: '단백질 먼저, 밥 나중' },
+  { id: 'm-late', text: '21시 이후 간식 없음', hint: '복부지방에 가장 큰 레버' },
+];
+
+export const MEAL_TIPS = [
+  { id: 't1', kind: 'do', text: '저녁은 단백질 먼저, 밥은 나중에. 같은 양을 먹어도 덜 들어갑니다.' },
+  { id: 't2', kind: 'do', text: '밥 한 공기를 2/3로 줄이고 그만큼 단백질 반찬을 늘려보세요.' },
+  { id: 't3', kind: 'avoid', text: '늦은 밤 간식이 복부지방의 1순위입니다. 배가 고프면 물이나 무가당 요거트.' },
+  { id: 't4', kind: 'avoid', text: '액상과당 음료(주스·탄산)는 포만감 없이 칼로리만 들어갑니다.' },
+  { id: 't5', kind: 'avoid', text: '술은 염증을 올리고 수면의 질을 낮춥니다 — 조직 회복이 그만큼 늦어집니다.' },
+  { id: 't6', kind: 'do', text: '단백질 하루 목표는 체중 1kg당 1.2~1.6g. 엉덩이 근력이 실제로 붙으려면 필요합니다.' },
+  { id: 't7', kind: 'do', text: '김밥에 삶은 계란 하나만 붙여도 점심의 질이 달라집니다.' },
+  { id: 't8', kind: 'do', text: '러닝 전후로 물 한 컵씩. 탈수는 근육 피로를 앞당깁니다.' },
+  { id: 't9', kind: 'avoid', text: '배고픈 채로 저녁을 맞으면 과식합니다. 아침·점심을 비우지 마세요.' },
+  { id: 't10', kind: 'do', text: '외식 한식이면 국물은 남기세요. 나트륨은 부종으로 돌아옵니다.' },
+  { id: 't11', kind: 'do', text: '샌드위치는 단백질이 든 것으로. 야채만 든 건 두 시간 뒤에 배고픕니다.' },
+  { id: 't12', kind: 'do', text: '잠들기 3시간 전에 식사를 끝내면 수면의 질이 올라갑니다.' },
 ];
 
 export const RUN_RULES = [
