@@ -7,8 +7,8 @@
   --border: #e2e8f0;
   --text: #0f172a;
   --muted: #64748b;
-  --brand: #2563eb;
-  --brand-soft: #eff6ff;
+  --brand: #006ffa;
+  --brand-soft: #e6f0ff;
   --ok: #059669;
   --ok-soft: #ecfdf5;
   --warn: #dc2626;
@@ -29,8 +29,8 @@
     --border: #22304f;
     --text: #e8eefc;
     --muted: #94a3b8;
-    --brand: #60a5fa;
-    --brand-soft: #16254a;
+    --brand: #4da3ff;
+    --brand-soft: #0e2747;
     --ok: #34d399;
     --ok-soft: #10291f;
     --warn: #f87171;
@@ -46,8 +46,8 @@
   --border: #22304f;
   --text: #e8eefc;
   --muted: #94a3b8;
-  --brand: #60a5fa;
-  --brand-soft: #16254a;
+  --brand: #4da3ff;
+  --brand-soft: #0e2747;
   --ok: #34d399;
   --ok-soft: #10291f;
   --warn: #f87171;
@@ -163,7 +163,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
 
 /* ── 오늘의 한 가지 ─────────────────────────────────── */
 .hero {
-  background: linear-gradient(135deg, var(--brand), #7c3aed);
+  background: linear-gradient(135deg, #006ffa, #6d3aed);
   color: #fff;
   border: 0;
 }

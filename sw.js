@@ -1,10 +1,11 @@
 // app shell을 cache-first로 잡는다. 외부 의존성이 없어 오프라인이 완전히 동작한다.
-const VERSION = 'rr-v3-002'; // 배포할 때마다 올린다
+const VERSION = 'rr-v3-003'; // 배포할 때마다 올린다
 const ASSETS = [
   './', './index.html', './styles.css',
   './app.js', './logic.js', './data.js', './store.js',
   './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
+  './icons/icon-512-maskable.png',
 ];
 
 self.addEventListener('install', (e) => {
