@@ -11,6 +11,7 @@ import {
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
   weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
   startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
+  phaseFor, doseFor, fmtDuration, PHASES,
   escapeHtml,
 } from './logic.js';
 
@@ -162,6 +163,27 @@ function renderOnboarding(root) {
 // ── 가이드 탭 ───────────────────────────────────────────────
 let guideFilter = 'all';
 
+// 얼마나·몇 세트·어느 속도로·얼마나 쉬는지. 단계에 따라 세트가 바뀐다.
+function renderDose(task, phase) {
+  const d = doseFor(task, phase);
+  const rest = d.restSec > 0 ? `${d.restSec}초` : '없음';
+  return `
+    <div class="dose">
+      <div class="dose-grid">
+        <div><span class="dk">한 세트</span><span class="dv">${escapeHtml(d.reps)}</span></div>
+        <div><span class="dk">세트 수</span><span class="dv">${d.sets}세트</span></div>
+        <div><span class="dk">세트 간 휴식</span><span class="dv">${rest}</span></div>
+        <div><span class="dk">총 소요</span><span class="dv">${escapeHtml(fmtDuration(d.totalSec))}</span></div>
+      </div>
+      <div class="dose-tempo"><span class="dk">속도</span> ${escapeHtml(d.tempo)}</div>
+      ${d.caution ? `
+        <div class="block warn" style="margin-top:8px">
+          <div class="bt">이 단계에서는 주의</div>
+          <div class="muted">${escapeHtml(d.caution)}</div>
+        </div>` : ''}
+    </div>`;
+}
+
 // 그림은 스와이프로 넘긴다. 라이브러리 없이 CSS scroll-snap만 쓴다.
 function renderCarousel(taskId) {
   const frames = ILLUSTRATIONS[taskId];
@@ -201,7 +223,20 @@ function renderGuide() {
   const filters = [['all', '전체'], ['essential', '필수'], ['recommended', '권장'], ['recovery', '회복']];
   const items = TASKS.filter((t) => guideFilter === 'all' || t.tier === guideFilter);
 
+  const settings = getSettings();
+  const phase = phaseFor(settings.runLevel, isPaused(settings, todayStr()));
+  const ph = PHASES[phase];
+
   root.innerHTML = `
+    <div class="card">
+      <h3>지금 단계 · ${escapeHtml(ph.label)}</h3>
+      <div class="kv"><span class="k">러닝</span><span class="v">Lv${settings.runLevel} / ${RUN_LADDER.length}</span></div>
+      <div class="kv"><span class="k">강화 빈도</span><span class="v">${escapeHtml(ph.frequency)}</span></div>
+      <p class="muted" style="margin:8px 0 0">${escapeHtml(ph.note)}</p>
+      <p class="muted" style="margin:6px 0 0;font-size:12px">
+        아래 처방은 이 단계에 맞춰 자동으로 바뀝니다.
+      </p>
+    </div>
     <div class="chips" id="guideChips">
       ${filters.map(([k, label]) => `
         <button type="button" data-filter="${k}" class="${guideFilter === k ? 'active' : ''}">${label}</button>
@@ -215,6 +250,7 @@ function renderGuide() {
         </summary>
         <div class="body">
           <p class="muted" style="margin:0 0 4px">${escapeHtml(t.summary)}</p>
+          ${renderDose(t, phase)}
           ${renderCarousel(t.id)}
           <div class="block plain">
             <div class="bt">언제 추천?</div>

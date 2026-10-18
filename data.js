@@ -2,7 +2,8 @@
 
 export const TASKS = [
   {
-    id: 'clamshell', tier: 'essential', contexts: ['home'],
+    id: 'clamshell',
+    dose: { reps: '15회 (양쪽)', sets: 3, tempo: '2초 열고 1초 버티고 2초 닫기', restSec: 30, perSetSec: 75 }, tier: 'essential', contexts: ['home'],
     title: '클램셸', detail: '15회 × 3세트',
     summary: '옆으로 누워 무릎을 벌려 중둔근을 깨웁니다.',
     when: '러닝할 때 골반이 흔들리거나 무릎이 안쪽으로 말릴 때',
@@ -16,7 +17,8 @@ export const TASKS = [
     youtube: 'https://www.youtube.com/watch?v=t0ASA5CxgKI',
   },
   {
-    id: 'bridge', tier: 'essential', contexts: ['home'],
+    id: 'bridge',
+    dose: { reps: '15회', sets: 2, tempo: '2초 올리고 1초 버티고 2초 내리기', restSec: 30, perSetSec: 75 }, tier: 'essential', contexts: ['home'],
     title: '힙 브리지', detail: '15회 × 2세트',
     summary: '누워서 엉덩이를 들어 둔근과 햄스트링을 씁니다.',
     when: '골반이 쉽게 처지거나 엉덩이 힘이 약하다고 느껴질 때',
@@ -30,7 +32,8 @@ export const TASKS = [
     youtube: 'https://www.youtube.com/watch?v=PhTDzR0TpZs',
   },
   {
-    id: 'band-side', tier: 'recommended', contexts: ['home'],
+    id: 'band-side',
+    dose: { reps: '10걸음 왕복', sets: 3, tempo: '한 걸음에 2초, 멈추지 않고', restSec: 45, perSetSec: 40 }, tier: 'recommended', contexts: ['home'],
     title: '밴드 사이드워킹', detail: '10m × 3세트',
     summary: '밴드를 걸고 옆으로 걸어 한 발 버티기 안정성을 키웁니다.',
     when: '무릎 바깥쪽이 불편하거나 착지 때 중심이 한쪽으로 무너질 때',
@@ -44,7 +47,8 @@ export const TASKS = [
     youtube: 'https://www.youtube.com/watch?v=tUqN-hWOwY0',
   },
   {
-    id: 'side-plank', tier: 'recommended', contexts: ['home'],
+    id: 'side-plank',
+    dose: { reps: '20~30초 (양쪽)', sets: 2, tempo: '버티는 동안 호흡 유지', restSec: 45, perSetSec: 60 }, tier: 'recommended', contexts: ['home'],
     title: '사이드 플랭크', detail: '20~30초 × 2세트 (양쪽)',
     summary: '몸통 측면과 중둔근을 함께 버티게 합니다.',
     when: '러닝 후반에 자세가 무너지는 느낌이 있을 때',
@@ -57,7 +61,8 @@ export const TASKS = [
     tips: ['힘들면 무릎을 굽혀 지지면을 줄이세요.'],
   },
   {
-    id: 'step-down', tier: 'recommended', contexts: ['home'],
+    id: 'step-down', provocative: true,
+    dose: { reps: '10회 (양쪽)', sets: 2, tempo: '3초에 걸쳐 내려가고 1초에 올라오기', restSec: 45, perSetSec: 80 }, tier: 'recommended', contexts: ['home'],
     title: '싱글레그 스텝다운', detail: '10회 × 2세트 (양쪽)',
     summary: '낮은 계단에서 한 발로 천천히 내려오며 착지 안정성을 기릅니다.',
     when: '계단을 내려갈 때 무릎 바깥이 불편할 때',
@@ -70,7 +75,8 @@ export const TASKS = [
     tips: ['통증이 있으면 단 높이를 낮추세요.'],
   },
   {
-    id: 'deadbug', tier: 'recommended', contexts: ['home'],
+    id: 'deadbug',
+    dose: { reps: '좌우 번갈아 10회', sets: 2, tempo: '3초 뻗고 3초 돌아오기', restSec: 30, perSetSec: 70 }, tier: 'recommended', contexts: ['home'],
     title: '데드버그', detail: '좌우 번갈아 10회 × 2세트',
     summary: '허리를 바닥에 붙인 채 팔다리를 뻗어 몸통이 버티게 합니다.',
     when: '달릴 때 상체가 흔들리거나 후반에 자세가 무너질 때',
@@ -86,7 +92,8 @@ export const TASKS = [
     ],
   },
   {
-    id: 'birddog', tier: 'recommended', contexts: ['home'],
+    id: 'birddog',
+    dose: { reps: '좌우 번갈아 10회', sets: 2, tempo: '뻗은 자세에서 3초 버티기', restSec: 30, perSetSec: 80 }, tier: 'recommended', contexts: ['home'],
     title: '버드독', detail: '좌우 번갈아 10회 × 2세트',
     summary: '네발 자세에서 반대쪽 팔다리를 뻗어 둔근과 몸통을 함께 씁니다.',
     when: '엉덩이와 몸통을 한 번에 쓰고 싶을 때',
@@ -99,7 +106,8 @@ export const TASKS = [
     tips: ['허리 위에 물컵을 올렸다고 생각하고 수평을 유지하세요.'],
   },
   {
-    id: 'plank', tier: 'recommended', contexts: ['home'],
+    id: 'plank',
+    dose: { reps: '20~40초', sets: 2, tempo: '엉덩이 조인 채 호흡 유지', restSec: 45, perSetSec: 35 }, tier: 'recommended', contexts: ['home'],
     title: '프론트 플랭크', detail: '20~40초 × 2세트',
     summary: '팔꿈치로 버티며 몸통 전체가 한 판처럼 유지되게 합니다.',
     when: '코어 기본기를 짧게 채우고 싶을 때',
@@ -112,7 +120,8 @@ export const TASKS = [
     tips: ['허리가 꺾이기 시작하면 그 지점이 그날의 한계입니다. 바로 내려오세요.'],
   },
   {
-    id: 'foam', tier: 'recovery', contexts: ['home'],
+    id: 'foam',
+    dose: { reps: '부위당 30~60초', sets: 1, tempo: '1초에 2~3cm, 아주 천천히', restSec: 0, perSetSec: 180 }, tier: 'recovery', contexts: ['home'],
     title: '폼롤러 + 스트레칭', detail: '부위당 30~60초',
     summary: '종아리·엉덩이 긴장을 줄여 보상 움직임을 막습니다.',
     when: '뻐근함이 누적되거나 다음 날 다리가 무거울 때',
@@ -126,7 +135,8 @@ export const TASKS = [
     youtube: 'https://www.youtube.com/watch?v=i9DvJa0mZQA',
   },
   {
-    id: 'hipflexor', tier: 'recovery', contexts: ['home'],
+    id: 'hipflexor',
+    dose: { reps: '30초 (양쪽)', sets: 2, tempo: '반동 없이 정지 상태로', restSec: 15, perSetSec: 60 }, tier: 'recovery', contexts: ['home'],
     title: '고관절 굴곡근 스트레칭', detail: '30초 × 양쪽',
     summary: '하루 8시간 앉아 짧아진 앞쪽을 늘립니다.',
     when: '오래 앉아 있던 날, 골반 앞쪽이 뻣뻣할 때',

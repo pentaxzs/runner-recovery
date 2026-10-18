@@ -377,3 +377,58 @@ export function pullProgress(dy, threshold = PULL_THRESHOLD) {
 export function shouldRefresh(dy, threshold = PULL_THRESHOLD) {
   return dy >= threshold;
 }
+
+// ── 단계별 처방 ─────────────────────────────────────────────
+// 장경인대는 엉덩이 근력 부족이 원인인 경우가 많다. 그래서 재활 초기에
+// 줄여야 하는 건 러닝이지 강화 운동이 아니다. 오히려 초기엔 매일 한다.
+export const PHASES = {
+  early: {
+    label: '재활 초기',
+    frequency: '강화는 매일',
+    note: '러닝은 줄이되 강화는 매일 합니다. 약한 엉덩이가 원인이라 여기서 빼면 회복이 늦어집니다.',
+  },
+  mid: {
+    label: '복귀 중기',
+    frequency: '강화 주 5회',
+    note: '세트를 하나씩 늘려 부하를 올립니다. 러닝 다음 날도 거르지 마세요.',
+  },
+  late: {
+    label: '유지기',
+    frequency: '강화 주 3회',
+    note: '재발 방지 단계입니다. 횟수보다 꾸준함이 중요합니다.',
+  },
+};
+
+export function phaseFor(runLevel, paused) {
+  if (paused) return 'early'; // 통증으로 멈춘 상태에 중기 처방을 주면 안 된다
+  if (runLevel >= 8) return 'late';
+  if (runLevel >= 4) return 'mid';
+  return 'early';
+}
+
+export function doseFor(task, phase) {
+  const p = PHASES[phase] ? phase : 'early';
+  const base = task.dose;
+  // 필수 2개는 매일 하는 최소선이라 늘리지 않는다. 회복 운동도 늘릴 대상이 아니다.
+  const escalates = task.tier === 'recommended' && (p === 'mid' || p === 'late');
+  const sets = escalates ? base.sets + 1 : base.sets;
+  const totalSec = sets * base.perSetSec + (sets - 1) * base.restSec;
+
+  return {
+    reps: base.reps,
+    sets,
+    tempo: base.tempo,
+    restSec: base.restSec,
+    totalSec,
+    caution: task.provocative && p === 'early'
+      ? '통증이 없는 날에만. 무릎이 30도쯤 굽을 때가 장경인대에 가장 민감한 구간입니다.'
+      : null,
+  };
+}
+
+export function fmtDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  if (m === 0) return `${s}초`;
+  return s === 0 ? `${m}분` : `${m}분 ${s}초`;
+}

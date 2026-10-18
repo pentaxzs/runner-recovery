@@ -757,3 +757,31 @@ body { overscroll-behavior-y: contain; }
 #ptr .bar i { display: block; height: 100%; width: 0; background: var(--brand); }
 #ptr.spin .bar i { width: 100% !important; animation: ptrPulse .7s linear infinite; }
 @keyframes ptrPulse { 50% { opacity: .35; } }
+
+/* ── 운동 처방 ──────────────────────────────────────── */
+.dose {
+  margin: 10px 0 2px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 12px;
+}
+.dose-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.dose-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.dk {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.dv { font-size: 15px; font-weight: 800; }
+.dose-tempo {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.dose-tempo .dk { margin-right: 6px; }
