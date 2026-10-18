@@ -585,6 +585,23 @@ function renderLog() {
   }
 }
 
+// 운동 체크 한 줄. 필수와 접힌 섹션이 같은 마크업을 쓰도록 여기로 모았다.
+function exerciseRow(task, todayChecks) {
+  const on = todayChecks.includes(task.id);
+  return `
+    <div class="check-row ${on ? 'done' : ''}">
+      <label class="check-hit">
+        <input type="checkbox" data-check="${task.id}" ${on ? 'checked' : ''}>
+        <span>
+          <span class="t">${escapeHtml(task.title)}</span><br>
+          <span class="d">${escapeHtml(task.detail)}</span>
+        </span>
+      </label>
+      <button type="button" class="howto-link" data-guide="${task.id}">자세히</button>
+    </div>
+  `;
+}
+
 // ── 오늘 화면 ───────────────────────────────────────────────
 export function renderToday() {
   const root = document.getElementById('tab-today');
@@ -683,21 +700,7 @@ export function renderToday() {
 
   // 3. 필수 2개
   const essentials = TASKS.filter((t) => t.tier === 'essential');
-  const essentialRows = essentials.map((t) => {
-    const on = todayChecks.includes(t.id);
-    return `
-      <div class="check-row ${on ? 'done' : ''}">
-        <label class="check-hit">
-          <input type="checkbox" data-check="${t.id}" ${on ? 'checked' : ''}>
-          <span>
-            <span class="t">${escapeHtml(t.title)}</span><br>
-            <span class="d">${escapeHtml(t.detail)}</span>
-          </span>
-        </label>
-        <button type="button" class="howto-link" data-guide="${t.id}">자세히</button>
-      </div>
-    `;
-  }).join('');
+  const essentialRows = essentials.map((t) => exerciseRow(t, todayChecks)).join('');
 
   if (day === SATURDAY) {
     parts.push(`
@@ -765,18 +768,7 @@ export function renderToday() {
       <details class="collapse">
         <summary>${heading}</summary>
         <div class="body">
-          ${items.map((t) => {
-            const on = todayChecks.includes(t.id);
-            return `
-              <label class="check-row ${on ? 'done' : ''}">
-                <input type="checkbox" data-check="${t.id}" ${on ? 'checked' : ''}>
-                <span>
-                  <span class="t">${escapeHtml(t.title)}</span><br>
-                  <span class="d">${escapeHtml(t.detail)}</span>
-                </span>
-              </label>
-            `;
-          }).join('')}
+          ${items.map((t) => exerciseRow(t, todayChecks)).join('')}
         </div>
       </details>
     `);
