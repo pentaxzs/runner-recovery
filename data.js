@@ -225,3 +225,16 @@ export const CONTEXT_LABELS = {
   home: '집',
   outdoor: '바깥',
 };
+
+// 러닝 외 활동. load가 'high'면 같은 날 러닝에 경고를 띄운다.
+// 장경인대는 옆 방향 감속에 약하다 — 배드민턴의 급정지와 런지가 정확히 그 동작이다.
+export const ACTIVITIES = [
+  { id: 'golf', label: '골프 연습', detail: '30분 · 연습장', load: 'low' },
+  { id: 'golf-round', label: '골프 라운딩', detail: '경사 보행 5~6시간', load: 'high' },
+  { id: 'badminton', label: '배드민턴', detail: '좌우 급정지가 많습니다', load: 'high' },
+  { id: 'tabletennis', label: '탁구', detail: '부하 낮음', load: 'low' },
+  { id: 'other', label: '기타 활동', detail: '', load: 'low' },
+];
+
+export const ACTIVITY_LABELS = Object.fromEntries(ACTIVITIES.map((a) => [a.id, a.label]));
+export const HIGH_LOAD_IDS = ACTIVITIES.filter((a) => a.load === 'high').map((a) => a.id);

@@ -2,13 +2,14 @@ import { createStore } from './store.js';
 import {
   TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABELS,
   WARMUP_MIN, COOLDOWN_MIN, MEAL_TIPS, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND,
+  ACTIVITIES, ACTIVITY_LABELS, HIGH_LOAD_IDS,
 } from './data.js';
 import { ILLUSTRATIONS } from './illustrations.js';
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
   weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
-  startingLevel, escapeHtml,
+  startingLevel, swipeIntent, adjacentTab, escapeHtml,
 } from './logic.js';
 
 const store = createStore();
@@ -59,10 +60,19 @@ function fmtDate(dateStr) {
 }
 
 // ── 탭 ──────────────────────────────────────────────────────
-export function activateTab(name) {
+let currentTab = 'today';
+
+export function activateTab(name, dir) {
   const target = TABS.includes(name) ? name : 'today';
+  currentTab = target;
   for (const t of TABS) {
-    document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== target);
+    const el = document.getElementById(`tab-${t}`);
+    el.classList.toggle('hidden', t !== target);
+    if (t === target && dir) {
+      el.classList.remove('slide-next', 'slide-prev');
+      void el.offsetWidth; // 리플로우를 강제해야 애니메이션이 다시 돈다
+      el.classList.add(dir === 'next' ? 'slide-next' : 'slide-prev');
+    }
   }
   document.querySelectorAll('.tabbar button').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === target);
@@ -360,6 +370,8 @@ function openSettings() {
 const CHART_W = 320;
 const CHART_H = 130;
 const SESSION_TYPE_LABELS = { run: '러닝', walk: '걷기', golf: '골프' };
+const sessionLabel = (s) =>
+  s.type === 'activity' ? (ACTIVITY_LABELS[s.kind] || '활동') : (SESSION_TYPE_LABELS[s.type] || s.type);
 
 function renderChart(sessions) {
   const { points, maxKm, minKm } = chartPoints(sessions, CHART_W, CHART_H);
@@ -540,7 +552,7 @@ function renderLog() {
 
     const type = document.createElement('span');
     type.className = 'pill';
-    type.textContent = SESSION_TYPE_LABELS[s.type] || s.type;
+    type.textContent = sessionLabel(s);
     head.appendChild(type);
 
     if (s.type === 'run') {
@@ -608,7 +620,8 @@ export function renderToday() {
   const level = ladderAt(settings.runLevel);
   const loggedToday = sessions.filter((s) => s.date === today);
   const ranToday = loggedToday.some((s) => s.type === 'run');
-  const golfToday = loggedToday.some((s) => s.type === 'golf');
+  const actsToday = loggedToday.filter((s) => s.type === 'activity');
+  const heavyToday = actsToday.filter((s) => HIGH_LOAD_IDS.includes(s.kind));
 
   if (isPaused(settings, today)) {
     parts.push(`
@@ -771,10 +784,10 @@ export function renderToday() {
   if (runToday) {
     parts.push(`
       <div class="card">
-        ${golfToday ? `
+        ${heavyToday.length ? `
           <div class="block warn">
-            <div class="bt">오늘 골프 연습을 했습니다</div>
-            <div class="muted">한 발 버티기가 지친 상태라 폼이 무너지기 쉽습니다.</div>
+            <div class="bt">오늘 ${escapeHtml(heavyToday.map((a) => ACTIVITY_LABELS[a.kind] || a.kind).join(', '))}을 했습니다</div>
+            <div class="muted">한 발 버티기가 지친 상태라 폼이 무너지기 쉽습니다. 오늘은 가볍게 가거나 하루 미루세요.</div>
           </div>` : ''}
         ${ranToday ? '<div class="block ok"><div class="bt">오늘 러닝을 기록했습니다</div></div>' : ''}
         <div class="btn-row" style="margin-top:10px">
@@ -795,12 +808,24 @@ export function renderToday() {
     `);
   }
 
-  // 7. 골프
+  // 7. 활동 기록 (골프 · 배드민턴 · 탁구 등)
   parts.push(`
-    <div class="btn-row" style="margin-bottom:12px">
-      <button class="btn btn-ghost btn-sm" id="logGolfBtn" type="button" style="width:100%">
-        ${golfToday ? '골프 연습 기록됨 ✓' : '골프 연습 30분 기록'}
-      </button>
+    <div class="card">
+      <h3>오늘 한 다른 활동</h3>
+      ${actsToday.length ? `
+        <div style="margin:8px 0 2px">
+          ${actsToday.map((a) => `
+            <span class="pill ${HIGH_LOAD_IDS.includes(a.kind) ? 'warn' : 'ok'}" style="margin-right:6px">
+              ${escapeHtml(ACTIVITY_LABELS[a.kind] || a.kind)}
+            </span>`).join('')}
+        </div>` : '<p class="muted" style="margin:4px 0 0">러닝 말고 몸을 쓴 게 있으면 남겨두세요. 다음 통증의 원인이 보입니다.</p>'}
+      <div class="act-grid">
+        ${ACTIVITIES.map((a) => `
+          <button class="act-btn" type="button" data-act="${a.id}">
+            <span class="al">${escapeHtml(a.label)}</span>
+            ${a.load === 'high' ? '<span class="ld">부하 높음</span>' : ''}
+          </button>`).join('')}
+      </div>
     </div>
   `);
 
@@ -840,16 +865,16 @@ export function renderToday() {
     b.addEventListener('click', () => openGuideFor(b.dataset.guide));
   });
 
-  const golfBtn = root.querySelector('#logGolfBtn');
-  if (golfBtn) {
-    golfBtn.addEventListener('click', () => {
-      if (golfToday) return;
+  root.querySelectorAll('[data-act]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const kind = b.dataset.act;
       const list = getSessions();
-      list.push({ date: today, type: 'golf' });
+      const at = list.findIndex((s) => s.date === today && s.type === 'activity' && s.kind === kind);
+      if (at >= 0) list.splice(at, 1); else list.push({ date: today, type: 'activity', kind });
       store.set('sessions', list);
       renderToday();
     });
-  }
+  });
 }
 
 // ── 러닝 기록 모달 ──────────────────────────────────────────
@@ -968,6 +993,32 @@ function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
 
+// ── 탭 스와이프 ─────────────────────────────────────────────
+// 캐러셀 같은 가로 스크롤 영역 안에서 시작한 제스처는 그쪽이 먹어야 한다.
+function startedInsideScroller(target) {
+  return Boolean(target.closest && target.closest('.track'));
+}
+
+function bindTabSwipe() {
+  const main = document.querySelector('main');
+  let x0 = 0, y0 = 0, skip = false;
+
+  main.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { skip = true; return; }
+    skip = startedInsideScroller(e.target);
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+
+  main.addEventListener('touchend', (e) => {
+    if (skip || !e.changedTouches.length) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    const next = adjacentTab(TABS, currentTab, swipeIntent(dx, dy));
+    if (next) activateTab(next, dx < 0 ? 'next' : 'prev');
+  }, { passive: true });
+}
+
 // ── 자정 넘김 ───────────────────────────────────────────────
 // location.reload()를 쓰지 않는다 — 입력 중이던 모달 값이 날아간다.
 // 모달은 #modal-root(=.app의 형제)에 있고 renderToday()는 #tab-today만 건드리므로
@@ -1025,6 +1076,7 @@ document.querySelectorAll('.tabbar button').forEach((b) => {
 });
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 
+bindTabSwipe();
 absorbStepsParam();
 maybeShowInstallHint();
 registerServiceWorker();

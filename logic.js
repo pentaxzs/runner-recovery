@@ -347,3 +347,21 @@ export function startingLevel(painKm, ladder) {
   }
   return Math.min(level, MAX_START_LEVEL);
 }
+
+// ── 탭 스와이프 ─────────────────────────────────────────────
+export const SWIPE_MIN_PX = 50;
+const SWIPE_RATIO = 1.5; // 가로가 세로보다 이만큼은 커야 한다
+
+// 세로 스크롤을 가로채면 앱을 못 쓰게 되므로 판정을 보수적으로 둔다.
+export function swipeIntent(dx, dy) {
+  if (Math.abs(dx) < SWIPE_MIN_PX) return null;
+  if (Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return null;
+  return dx < 0 ? 'next' : 'prev';
+}
+
+export function adjacentTab(tabs, current, intent) {
+  const i = tabs.indexOf(current);
+  if (i < 0 || !intent) return null;
+  const j = intent === 'next' ? i + 1 : i - 1;
+  return j >= 0 && j < tabs.length ? tabs[j] : null; // 끝에서 순환하지 않는다
+}

@@ -648,3 +648,39 @@ svg.ill .figdim {
   fill: none;
   opacity: .35;
 }
+
+/* ── 탭 스와이프 ────────────────────────────────────── */
+main { touch-action: pan-y; }
+@keyframes slideFromRight { from { opacity: .35; transform: translateX(26px); } }
+@keyframes slideFromLeft  { from { opacity: .35; transform: translateX(-26px); } }
+.slide-next { animation: slideFromRight .18s ease-out; }
+.slide-prev { animation: slideFromLeft .18s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .slide-next, .slide-prev { animation: none; }
+}
+
+/* ── 활동 기록 ──────────────────────────────────────── */
+.act-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.act-btn {
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+}
+.act-btn .ld { font-size: 10px; font-weight: 800; color: var(--warn); }
