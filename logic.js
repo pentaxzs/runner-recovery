@@ -444,3 +444,80 @@ export function fmtDuration(sec) {
   if (m === 0) return `${s}초`;
   return s === 0 ? `${m}분` : `${m}분 ${s}초`;
 }
+
+// ── 홈 통계 ─────────────────────────────────────────────────
+export const STRIDE_M = 0.7; // 보폭 가정. 걷기 거리는 어디까지나 추정치다.
+
+// 그리드 한 칸의 상태. 토요일은 'rest' — 쉬는 날이 실패로 보이면
+// 쉬어야 할 날에 억지로 하게 된다.
+export function dayStatus(dateStr, { checks = {}, essentialIds = [], startedAt, today }) {
+  if (dateStr > today) return 'future';
+  if (startedAt && dateStr < startedAt) return 'before';
+
+  const list = checks[dateStr];
+  const done = Array.isArray(list) ? essentialIds.filter((id) => list.includes(id)).length : 0;
+  const isSat = parseLocalDate(dateStr).getDay() === SATURDAY;
+
+  if (isSat) return done === essentialIds.length ? 'restDone' : 'rest';
+  if (done === 0) return 'none';
+  return done === essentialIds.length ? 'full' : 'partial';
+}
+
+export function lastNDays(today, n) {
+  const end = parseLocalDate(today);
+  return Array.from({ length: n }, (_, i) => toDateStr(addDays(end, i - (n - 1))));
+}
+
+// 현재 streak 계산을 과거 각 날짜에 적용해 최댓값을 찾는다. 유예 규칙까지
+// 그대로 따라가므로 두 숫자가 어긋나지 않는다.
+export function longestStreak(checks, essentialIds, today, lookbackDays = 365) {
+  let best = 0;
+  for (const d of lastNDays(today, lookbackDays)) {
+    const s = calcStreak(checks, essentialIds, d);
+    if (s > best) best = s;
+  }
+  return best;
+}
+
+export function weeklyRunGoal(settings, sessions, weekStartStr, today) {
+  const start = parseLocalDate(weekStartStr);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const runDays = settings.runDays || [];
+  const target = days.filter((d) => d.getDay() === 0 || runDays.includes(d.getDay())).length;
+
+  const endStr = toDateStr(days[6]);
+  const ran = new Set(
+    (sessions || [])
+      .filter((s) => s.type === 'run' && s.date >= weekStartStr && s.date <= endStr)
+      .map((s) => s.date)); // 같은 날 두 번 뛰어도 하루로 센다
+  return { done: ran.size, target, today };
+}
+
+export function cumulativeStats(sessions, steps) {
+  const runs = (sessions || []).filter((s) => s.type === 'run');
+  const runKm = round1(runs.reduce((a, s) => a + (Number(s.distanceKm) || 0), 0));
+
+  const activities = {};
+  for (const s of sessions || []) {
+    if (s.type !== 'activity') continue;
+    activities[s.kind] = (activities[s.kind] || 0) + 1;
+  }
+
+  const values = Object.values(steps || {}).filter((n) => Number.isFinite(n));
+  const stepTotal = values.reduce((a, b) => a + b, 0);
+
+  return {
+    runCount: runs.length,
+    runKm,
+    activities,
+    stepTotal,
+    hasSteps: values.length > 0,
+    walkKm: round1((stepTotal * STRIDE_M) / 1000),
+  };
+}
+
+export function bestPainFreeIn(sessions, fromStr, toStr) {
+  const runs = (sessions || [])
+    .filter((s) => s.type === 'run' && s.date >= fromStr && s.date <= toStr);
+  return runs.length ? round1(Math.max(...runs.map(painFreeKm))) : 0;
+}

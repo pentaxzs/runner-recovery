@@ -98,7 +98,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   padding: 6px;
   margin-bottom: var(--gap);
@@ -114,8 +114,10 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   color: var(--muted);
   font: inherit;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
+  padding: 0 2px;
+  white-space: nowrap;
 }
 .tabbar button.active { background: var(--brand); color: #fff; }
 
@@ -857,3 +859,113 @@ body.modal-open { overflow: hidden; }
   padding: 2px 8px;
   border: 1px solid var(--border);
 }
+
+/* ── 오늘 할 일 블록 ────────────────────────────────── */
+.todo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.todo-count { font-size: 15px; font-weight: 800; color: var(--brand); }
+
+.run-block {
+  margin: 12px 0 4px;
+  padding: 14px;
+  background: linear-gradient(135deg, #006ffa, #6d3aed);
+  color: #fff;
+}
+.run-block .label { font-size: 12px; font-weight: 800; opacity: .85; }
+.run-block .title { font-size: 20px; font-weight: 900; margin-top: 6px; letter-spacing: -.03em; }
+.run-block .meta { font-size: 13px; opacity: .9; margin-top: 6px; }
+.run-block ul { margin: 12px 0 0; padding-left: 18px; font-size: 13px; opacity: .95; }
+.run-block li { margin: 3px 0; }
+.run-block .btn { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3); color: #fff; }
+.run-block .btn-primary { background: #fff; border-color: #fff; color: #0b2a66; }
+.run-warn {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(0, 0, 0, .22);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── 홈: 타일 ───────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 12px 10px;
+  min-height: 86px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.tile .tv { font-size: 24px; font-weight: 900; letter-spacing: -.03em; line-height: 1.1; }
+.tile .tu { font-size: 12px; font-weight: 800; margin-left: 2px; color: var(--muted); }
+.tile .tl { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 4px; }
+.tile .td { font-size: 11px; font-weight: 800; margin-top: 4px; }
+.tile .td.up { color: var(--ok); }
+.tile .td.down { color: var(--warn); }
+
+/* ── 홈: 30일 그리드 ────────────────────────────────── */
+.grid30 {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+  margin-top: 12px;
+}
+.g-cell {
+  display: block;
+  aspect-ratio: 1;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  position: relative;
+}
+.g-full { background: var(--brand); border-color: var(--brand); }
+.g-partial {
+  background: linear-gradient(135deg, var(--brand) 0 50%, transparent 50% 100%);
+  border-color: var(--brand);
+}
+.g-none { border-color: var(--border); }
+.g-rest, .g-restDone { border-style: dashed; border-color: var(--muted); background: transparent; }
+.g-restDone { background: var(--surface-2); }
+.g-before, .g-future { border-color: var(--border); opacity: .3; }
+.g-today { outline: 2px solid var(--text); outline-offset: 1px; }
+/* 러닝한 날은 칸 아래 밑줄. 필수 완료 여부와 겹치지 않게 층을 나눈다. */
+.g-ran::after {
+  content: "";
+  position: absolute;
+  left: -1.5px;
+  right: -1.5px;
+  bottom: -4px;
+  height: 3px;
+  background: var(--ok);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend i.g-cell { width: 11px; height: 11px; aspect-ratio: auto; }
+
+/* ── 홈: 주간 목표 ──────────────────────────────────── */
+.goalbar { display: flex; gap: 6px; margin-top: 12px; }
+.gslot { flex: 1; height: 10px; border: 1.5px solid var(--border); }
+.gslot.on { background: var(--brand); border-color: var(--brand); }
+
+/* ── 홈: 요일 막대 ──────────────────────────────────── */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.split .card { margin-bottom: 12px; }
+.weekbars { display: flex; gap: 4px; align-items: flex-end; margin-top: 12px; height: 56px; }
+.wb { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; gap: 4px; }
+.wb-fill { display: block; background: var(--border); }
+.wb-0 { height: 4px; }
+.wb-1 { height: 50%; background: var(--brand); opacity: .5; }
+.wb-2 { height: 100%; background: var(--brand); }
+.wb-f { height: 4px; opacity: .3; }
+.wb-d { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }

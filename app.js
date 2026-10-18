@@ -12,11 +12,12 @@ import {
   weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
   startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
+  dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   escapeHtml,
 } from './logic.js';
 
 const store = createStore();
-const TABS = ['today', 'log', 'guide'];
+const TABS = ['home', 'today', 'log', 'guide'];
 const ESSENTIAL_IDS = TASKS.filter((t) => t.tier === 'essential').map((t) => t.id);
 const SUNDAY = 0;
 const SATURDAY = 6;
@@ -82,6 +83,7 @@ export function activateTab(name, dir) {
     b.classList.toggle('active', b.dataset.tab === target);
   });
   store.set('lastTab', target);
+  if (target === 'home') renderHome();
   if (target === 'log') renderLog();
   if (target === 'guide') renderGuide();
 }
@@ -427,6 +429,160 @@ function openSettings() {
   });
 }
 
+// ── 홈 탭 ───────────────────────────────────────────────────
+const GRID_DAYS = 30;
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+
+function tile(value, label, delta, unit) {
+  const arrow = delta > 0 ? '▲' : delta < 0 ? '▼' : '';
+  const cls = delta > 0 ? 'up' : delta < 0 ? 'down' : '';
+  return `
+    <div class="tile">
+      <div class="tv">${escapeHtml(String(value))}<span class="tu">${escapeHtml(unit || '')}</span></div>
+      <div class="tl">${escapeHtml(label)}</div>
+      ${arrow ? `<div class="td ${cls}">${arrow} ${escapeHtml(String(Math.abs(delta)))}</div>` : ''}
+    </div>`;
+}
+
+function renderGrid(checks, settings, today, sessions) {
+  const days = lastNDays(today, GRID_DAYS);
+  const ranOn = new Set(sessions.filter((s) => s.type === 'run').map((s) => s.date));
+  const counted = days.filter((d) => {
+    const st = dayStatus(d, { checks, essentialIds: ESSENTIAL_IDS, startedAt: settings.startedAt, today });
+    return st === 'full' || st === 'partial' || st === 'none';
+  });
+  const fullCount = days.filter((d) =>
+    dayStatus(d, { checks, essentialIds: ESSENTIAL_IDS, startedAt: settings.startedAt, today }) === 'full').length;
+
+  return `
+    <div class="card">
+      <div class="todo-head">
+        <h3>최근 30일</h3>
+        <span class="todo-count">필수 ${fullCount}/${counted.length}</span>
+      </div>
+      <div class="grid30">
+        ${days.map((d) => {
+          const st = dayStatus(d, { checks, essentialIds: ESSENTIAL_IDS, startedAt: settings.startedAt, today });
+          const isToday = d === today;
+          return `<span class="g-cell g-${st}${isToday ? ' g-today' : ''}${ranOn.has(d) ? ' g-ran' : ''}"
+                        title="${escapeHtml(d)}"></span>`;
+        }).join('')}
+      </div>
+      <div class="legend">
+        <span><i class="g-cell g-full"></i>완료</span>
+        <span><i class="g-cell g-partial"></i>1개</span>
+        <span><i class="g-cell g-none"></i>미완료</span>
+        <span><i class="g-cell g-rest"></i>쉬는 날</span>
+        <span><i class="g-cell g-full g-ran"></i>러닝</span>
+      </div>
+    </div>`;
+}
+
+function renderHome() {
+  const root = document.getElementById('tab-home');
+  const today = todayStr();
+  const settings = getSettings();
+  const checks = getChecks();
+  const sessions = getSessions();
+  const steps = getSteps();
+
+  const streak = calcStreak(checks, ESSENTIAL_IDS, today);
+  const best = longestStreak(checks, ESSENTIAL_IDS, today, 180);
+
+  const from30 = toDateStr(addDays(parseLocalDate(today), -29));
+  const prevFrom = toDateStr(addDays(parseLocalDate(today), -59));
+  const prevTo = toDateStr(addDays(parseLocalDate(today), -30));
+
+  const bestNow = bestPainFreeIn(sessions, from30, today);
+  const bestPrev = bestPainFreeIn(sessions, prevFrom, prevTo);
+  const runs30 = sessions.filter((s) => s.type === 'run' && s.date >= from30).length;
+  const runsPrev = sessions.filter((s) => s.type === 'run' && s.date >= prevFrom && s.date <= prevTo).length;
+
+  const goal = weeklyRunGoal(settings, sessions, toDateStr(mondayOf(parseLocalDate(today))), today);
+  const cum = cumulativeStats(sessions, steps);
+  const wt = weightTrend(getWeights(), today, 28);
+
+  // 이번 주 요일별 필수 달성 (0~2)
+  const weekStart = mondayOf(parseLocalDate(today));
+  const weekDays = Array.from({ length: 7 }, (_, i) => toDateStr(addDays(weekStart, i)));
+  const weekBars = weekDays.map((d) => {
+    const list = checks[d] || [];
+    return { d, n: ESSENTIAL_IDS.filter((id) => list.includes(id)).length, future: d > today };
+  });
+
+  // 8주 통증 추이
+  const from8w = toDateStr(addDays(parseLocalDate(today), -55));
+  const trendRuns = sessions.filter((s) => s.type === 'run' && s.date >= from8w);
+  const { points } = chartPoints(trendRuns, 180, 44);
+
+  root.innerHTML = `
+    <div class="tiles">
+      ${tile(streak, `연속 · 최장 ${best}일`, 0, '일')}
+      ${tile(bestNow || '–', '통증없이 뛴 최고', bestNow && bestPrev ? Math.round((bestNow - bestPrev) * 10) / 10 : 0, bestNow ? 'km' : '')}
+      ${tile(runs30, '30일 러닝', runs30 - runsPrev, '회')}
+    </div>
+
+    <div class="card">
+      <div class="todo-head">
+        <h3>이번 주 러닝</h3>
+        <span class="todo-count">${goal.done}/${goal.target}</span>
+      </div>
+      <div class="goalbar">
+        ${Array.from({ length: goal.target }, (_, i) =>
+          `<span class="gslot${i < goal.done ? ' on' : ''}"></span>`).join('')}
+      </div>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">
+        ${goal.done >= goal.target
+          ? '이번 주 계획을 다 채웠습니다.'
+          : `계획한 요일: ${(settings.runDays || []).map((d) => DOW[d]).join('·')}${(settings.runDays || []).length ? '·' : ''}일`}
+      </p>
+    </div>
+
+    ${renderGrid(checks, settings, today, sessions)}
+
+    <div class="split">
+      <div class="card">
+        <h3>이번 주 필수</h3>
+        <div class="weekbars">
+          ${weekBars.map((b) => `
+            <div class="wb">
+              <span class="wb-fill wb-${b.future ? 'f' : b.n}"></span>
+              <span class="wb-d">${DOW[parseLocalDate(b.d).getDay()]}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <h3>8주 통증 추이</h3>
+        ${points.length > 1 ? `
+          <svg class="chart" viewBox="0 0 196 60" role="img" aria-label="통증 없이 뛴 거리 추이">
+            <polyline fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round"
+              points="${points.map((p) => `${p.x + 8},${p.y + 8}`).join(' ')}"/>
+          </svg>
+          <div class="muted" style="font-size:11px">최근 ${points.length}회</div>`
+        : '<div class="empty" style="padding:14px">러닝 2회부터 그려집니다.</div>'}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>누적</h3>
+      <div class="kv"><span class="k">러닝</span><span class="v">${cum.runKm}km · ${cum.runCount}회</span></div>
+      ${cum.hasSteps
+        ? `<div class="kv"><span class="k">걷기 (추정)</span><span class="v">약 ${cum.walkKm}km</span></div>
+           <div class="kv"><span class="k">걸음 수</span><span class="v">${cum.stepTotal.toLocaleString('ko-KR')}보</span></div>`
+        : ''}
+      ${Object.keys(cum.activities).length
+        ? `<div class="kv"><span class="k">다른 활동</span><span class="v">${
+            Object.entries(cum.activities).map(([k, n]) => `${escapeHtml(ACTIVITY_LABELS[k] || k)} ${n}`).join(' · ')
+          }</span></div>`
+        : ''}
+      ${wt.count >= 2
+        ? `<div class="kv"><span class="k">체중 (4주)</span><span class="v">${wt.latest}kg ${wt.delta > 0 ? '▲' : wt.delta < 0 ? '▼' : '–'} ${Math.abs(wt.delta)}</span></div>`
+        : ''}
+      ${cum.hasSteps ? '<p class="muted" style="margin:8px 0 0;font-size:11px">걷기 거리는 보폭 0.7m 가정 추정치입니다.</p>' : ''}
+    </div>
+  `;
+}
+
 // ── 기록 탭 ─────────────────────────────────────────────────
 const CHART_W = 320;
 const CHART_H = 130;
@@ -721,13 +877,19 @@ export function renderToday() {
     </div>
   `);
 
-  // 2. 오늘의 한 가지
+  // 2+3. 오늘 할 일 — 러닝과 필수를 한 블록으로. 따로 두면 러닝 없는 날
+  // 히어로가 필수 2개를 그대로 복창하고, 러닝 날엔 "한 가지"가 거짓말이 된다.
   const runToday = isRunDay(today, settings);
   const level = ladderAt(settings.runLevel);
   const loggedToday = sessions.filter((s) => s.date === today);
   const ranToday = loggedToday.some((s) => s.type === 'run');
   const actsToday = loggedToday.filter((s) => s.type === 'activity');
   const heavyToday = actsToday.filter((s) => HIGH_LOAD_IDS.includes(s.kind));
+  const essentials = TASKS.filter((t) => t.tier === 'essential');
+  const essentialRows = essentials.map((t) => exerciseRow(t, todayChecks)).join('');
+
+  const todoTotal = essTotal + (runToday ? 1 : 0);
+  const todoDone = essDone + (runToday && ranToday ? 1 : 0);
 
   if (isPaused(settings, today)) {
     parts.push(`
@@ -735,77 +897,81 @@ export function renderToday() {
         <div class="label">러닝 중단 중 · ${escapeHtml(fmtDate(settings.pausedUntil))}까지</div>
         <div class="title">걷기 + 강화만</div>
         <div class="meta">통증이 3회 연속 나왔습니다. 2주간 러닝을 빼고 엉덩이 근력과 걷기로 버팁니다.</div>
-        <ul>
-          <li>필수 2개는 매일 그대로</li>
-          <li>걷기는 통증 없는 범위에서 자유롭게</li>
-          <li>그래도 아프면 병원 진료를 권합니다</li>
-        </ul>
-      </div>
-    `);
+      </div>`);
   } else if (day === SATURDAY) {
     parts.push(`
       <div class="card hero rest">
-        <div class="label">오늘의 한 가지</div>
-        <div class="title">오늘은 쉬는 날입니다</div>
+        <div class="label">오늘</div>
+        <div class="title">쉬는 날입니다</div>
         <div class="meta">회복도 프로그램의 일부입니다. 토요일은 연속 기록에서 건너뜁니다 — 쉬어도 안 끊깁니다.</div>
-      </div>
-    `);
-  } else if (runToday) {
-    const lightOn = store.get('lightDay', '') === today;
-    const sets = lightOn ? lightSets(level.sets) : level.sets;
-    const isInterval = level.runMin > 0;
-    const runTotal = isInterval ? level.runMin * sets : 0;
-    const bodyMin = isInterval ? (level.runMin + level.walkMin) * sets : 0;
-
-    parts.push(`
-      <div class="card hero">
-        <div class="label">오늘의 한 가지 · Lv${level.level}${lightOn ? ' · 가볍게' : ''}</div>
-        <div class="title">${escapeHtml(isInterval ? `뛰기 ${level.runMin}분 / 걷기 ${level.walkMin}분 × ${sets}` : level.label)}</div>
-        <div class="meta">${isInterval
-          ? `실제로 뛰는 시간 ${runTotal}분 · 전체 ${WARMUP_MIN + bodyMin + COOLDOWN_MIN}분`
-          : `약 ${level.approxKm}km`}${day === SUNDAY ? ' · 오후 권장' : ''}</div>
-        ${isInterval ? `
-        <div class="timeline">
-          <div class="tl-row"><span class="tl-k">웜업</span><span>걷기 ${WARMUP_MIN}분</span></div>
-          ${Array.from({ length: sets }, (_, i) => `
-            <div class="tl-row cyc"><span class="tl-k">${i + 1}</span>
-              <span><b>뛰기 ${level.runMin}분</b> → 걷기 ${level.walkMin}분</span></div>`).join('')}
-          <div class="tl-row"><span class="tl-k">쿨다운</span><span>걷기 ${COOLDOWN_MIN}분</span></div>
-        </div>` : ''}
-        <ul>${RUN_RULES.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>
-      </div>
-    `);
-  } else {
-    parts.push(`
-      <div class="card hero">
-        <div class="label">오늘의 한 가지</div>
-        <div class="title">클램셸 + 힙 브리지</div>
-        <div class="meta">5분이면 끝납니다</div>
-      </div>
-    `);
+      </div>`);
   }
 
-  // 3. 필수 2개
-  const essentials = TASKS.filter((t) => t.tier === 'essential');
-  const essentialRows = essentials.map((t) => exerciseRow(t, todayChecks)).join('');
+  const runBlock = runToday ? `
+    <div class="run-block">
+      <div class="label">러닝 · Lv${level.level}${store.get('lightDay', '') === today ? ' · 가볍게' : ''}</div>
+      ${(() => {
+        const lightOn = store.get('lightDay', '') === today;
+        const sets = lightOn ? lightSets(level.sets) : level.sets;
+        const isInterval = level.runMin > 0;
+        const runTotal = isInterval ? level.runMin * sets : 0;
+        const bodyMin = isInterval ? (level.runMin + level.walkMin) * sets : 0;
+        return `
+          <div class="title">${escapeHtml(isInterval
+            ? `뛰기 ${level.runMin}분 / 걷기 ${level.walkMin}분 × ${sets}` : level.label)}</div>
+          <div class="meta">${isInterval
+            ? `실제로 뛰는 시간 ${runTotal}분 · 전체 ${WARMUP_MIN + bodyMin + COOLDOWN_MIN}분`
+            : `약 ${level.approxKm}km`}${day === SUNDAY ? ' · 오후 권장' : ''}</div>
+          ${isInterval ? `
+          <div class="timeline">
+            <div class="tl-row"><span class="tl-k">웜업</span><span>걷기 ${WARMUP_MIN}분</span></div>
+            ${Array.from({ length: sets }, (_, i) => `
+              <div class="tl-row cyc"><span class="tl-k">${i + 1}</span>
+                <span><b>뛰기 ${level.runMin}분</b> → 걷기 ${level.walkMin}분</span></div>`).join('')}
+            <div class="tl-row"><span class="tl-k">쿨다운</span><span>걷기 ${COOLDOWN_MIN}분</span></div>
+          </div>` : ''}
+          <ul>${RUN_RULES.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
+      })()}
+      ${heavyToday.length ? `
+        <div class="run-warn">
+          <b>오늘 ${escapeHtml(heavyToday.map((a) => ACTIVITY_LABELS[a.kind] || a.kind).join(', '))}을 했습니다</b><br>
+          한 발 버티기가 지친 상태라 폼이 무너지기 쉽습니다. 가볍게 가거나 하루 미루세요.
+        </div>` : ''}
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-primary" id="logRunBtn" type="button">
+          ${ranToday ? '러닝 한 번 더 기록' : '오늘 러닝 기록하기'}
+        </button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-ghost" id="lightBtn" type="button">
+          ${store.get('lightDay', '') === today ? '원래 계획으로 되돌리기' : '오늘은 가볍게 (세트 줄이기)'}
+        </button>
+      </div>
+    </div>` : '';
+
+  const todoHead = `
+    <div class="todo-head">
+      <h3>오늘 할 일</h3>
+      <span class="todo-count">${todoDone}/${todoTotal}</span>
+    </div>`;
 
   if (day === SATURDAY) {
     parts.push(`
       <details class="collapse">
         <summary>필수 2개 (쉬는 날이라 선택)</summary>
         <div class="body">${essentialRows}</div>
-      </details>
-    `);
+      </details>`);
   } else {
     parts.push(`
       <div class="card">
-        <h3>필수 <span class="muted" style="font-weight:600">· ${essDone}/${essTotal}</span></h3>
-        <p class="muted" style="margin:4px 0 0;font-size:12px">
+        ${todoHead}
+        <p class="muted" style="margin:2px 0 0;font-size:12px">
           ${essDone === essTotal
-            ? '오늘치 완료. 연속 기록이 올라갔습니다.'
-            : '이 둘을 다 체크한 날만 연속 기록에 들어갑니다. 러닝·식사·활동은 세지 않습니다.'}
+            ? '필수 완료. 연속 기록이 올라갔습니다.'
+            : '아래 운동 2개를 다 체크한 날만 연속 기록에 들어갑니다. 러닝·식사·활동은 세지 않습니다.'}
         </p>
-        <div style="margin-top:6px">${essentialRows}</div>
+        ${runBlock}
+        <div style="margin-top:${runToday ? '4px' : '6px'}">${essentialRows}</div>
       </div>`);
   }
 
@@ -867,34 +1033,6 @@ export function renderToday() {
           ${items.map((t) => exerciseRow(t, todayChecks)).join('')}
         </div>
       </details>
-    `);
-  }
-
-  // 6. 러닝 기록 (러닝 지정일만)
-  if (runToday) {
-    parts.push(`
-      <div class="card">
-        ${heavyToday.length ? `
-          <div class="block warn">
-            <div class="bt">오늘 ${escapeHtml(heavyToday.map((a) => ACTIVITY_LABELS[a.kind] || a.kind).join(', '))}을 했습니다</div>
-            <div class="muted">한 발 버티기가 지친 상태라 폼이 무너지기 쉽습니다. 오늘은 가볍게 가거나 하루 미루세요.</div>
-          </div>` : ''}
-        ${ranToday ? '<div class="block ok"><div class="bt">오늘 러닝을 기록했습니다</div></div>' : ''}
-        <div class="btn-row" style="margin-top:10px">
-          <button class="btn btn-primary" id="logRunBtn" type="button">
-            ${ranToday ? '러닝 한 번 더 기록' : '오늘 러닝 기록하기'}
-          </button>
-        </div>
-        <div class="btn-row" style="margin-top:8px">
-          <button class="btn btn-ghost btn-sm" id="lightBtn" type="button" style="width:100%">
-            ${store.get('lightDay', '') === today ? '· 원래 계획으로 되돌리기' : '오늘은 가볍게 (세트 줄이기)'}
-          </button>
-        </div>
-        <p class="muted" style="margin:8px 0 0;font-size:12px">
-          하기 싫은 날 0으로 끝내는 것보단 낫습니다. 가볍게 한 날은 승급에는 안 세고,
-          통증이 나오면 단계는 그대로 내려갑니다.
-        </p>
-      </div>
     `);
   }
 
@@ -1315,6 +1453,6 @@ absorbStepsParam();
 maybeShowInstallHint();
 registerServiceWorker();
 renderToday();
-activateTab(isOnboarded() ? store.get('lastTab', 'today') : 'today');
+activateTab('today');
 
 window.__rr = { store, renderToday };
