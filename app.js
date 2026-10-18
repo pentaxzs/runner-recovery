@@ -3,7 +3,7 @@ import { TASKS, MICRO_MISSIONS, RUN_LADDER, RUN_RULES, TIER_LABELS, CONTEXT_LABE
 import {
   todayStr, toDateStr, parseLocalDate, addDays, mondayOf,
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
-  escapeHtml,
+  weeklyReport, chartPoints, escapeHtml,
 } from './logic.js';
 
 const store = createStore();
@@ -134,9 +134,160 @@ function renderOnboarding(root) {
   });
 }
 
-// Task 10/11에서 채운다.
-function renderLog() {}
+// Task 11에서 채운다.
 function renderGuide() {}
+
+// ── 기록 탭 ─────────────────────────────────────────────────
+const CHART_W = 320;
+const CHART_H = 130;
+const SESSION_TYPE_LABELS = { run: '러닝', walk: '걷기', golf: '골프' };
+
+function renderChart(sessions) {
+  const { points, maxKm, minKm } = chartPoints(sessions, CHART_W, CHART_H);
+  if (points.length === 0) {
+    return `<div class="empty">아직 러닝 기록이 없습니다.<br>첫 러닝을 기록하면 여기에 추이가 그려집니다.</div>`;
+  }
+
+  const pad = 8;
+  const line = points.length > 1
+    ? `<polyline fill="none" stroke="var(--brand)" stroke-width="2.5"
+         stroke-linejoin="round" stroke-linecap="round"
+         points="${points.map((p) => `${p.x + pad},${p.y + pad}`).join(' ')}" />`
+    : '';
+  const dots = points.map((p) => `
+    <circle cx="${p.x + pad}" cy="${p.y + pad}" r="4.5"
+      fill="${p.hadPain ? 'var(--warn)' : 'var(--brand)'}" />`).join('');
+
+  return `
+    <div class="chart-wrap">
+      <svg class="chart" viewBox="0 0 ${CHART_W + pad * 2} ${CHART_H + pad * 2 + 16}"
+           role="img" aria-label="통증 없이 뛴 거리 추이">
+        ${line}${dots}
+        <text class="axis" x="${pad}" y="${CHART_H + pad * 2 + 10}">${minKm}km</text>
+        <text class="axis" x="${CHART_W + pad}" y="${pad - 1}" text-anchor="end">${maxKm}km</text>
+      </svg>
+    </div>
+  `;
+}
+
+function renderStepBars(steps) {
+  const today = parseLocalDate(todayStr());
+  const days = Array.from({ length: 14 }, (_, i) => toDateStr(addDays(today, i - 13)));
+  const values = days.map((d) => (Number.isFinite(steps[d]) ? steps[d] : 0));
+  const max = Math.max(...values, 1);
+  if (values.every((v) => v === 0)) return '';
+  return `
+    <div class="steps">
+      ${values.map((v) => `<div class="bar" style="height:${Math.round((v / max) * 100)}%"></div>`).join('')}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:4px">최근 14일 걸음 수 · 최대 ${max.toLocaleString('ko-KR')}보</div>
+  `;
+}
+
+function renderWeeklyReport() {
+  const now = new Date();
+  const isSundayNight = now.getDay() === SUNDAY && now.getHours() >= 22;
+  if (!isSundayNight) return '';
+
+  const weekStart = toDateStr(mondayOf(now));
+  const r = weeklyReport({
+    checks: getChecks(), sessions: getSessions(), steps: getSteps(), essentialIds: ESSENTIAL_IDS,
+  }, weekStart);
+  if (!r.hasData) return '';
+
+  const settings = getSettings();
+  const decided = nextLevel(settings.runLevel, getSessions().filter((s) => s.type === 'run'), RUN_LADDER.length);
+  const arrow = r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : '–';
+
+  return `
+    <div class="card">
+      <h2>이번 주 리포트</h2>
+      <div class="kv"><span class="k">필수 달성</span><span class="v">${r.essentialDone} / ${r.essentialTarget}일</span></div>
+      <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
+      <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
+      <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
+      <div class="block ${decided.paused ? 'warn' : 'ok'}">
+        <div class="bt">다음 주 제안</div>
+        <div class="muted">${escapeHtml(decided.reason)}${decided.paused ? '' : ` · Lv${decided.level}`}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLog() {
+  const root = document.getElementById('tab-log');
+  const sessions = getSessions();
+  const steps = getSteps();
+
+  const recent = sessions.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+
+  root.innerHTML = `
+    ${renderWeeklyReport()}
+    <div class="card">
+      <h2>통증 없이 뛴 거리</h2>
+      <p class="muted" style="margin:4px 0 0">선이 올라가면 회복되고 있다는 뜻입니다. 빨간 점은 통증이 있던 날입니다.</p>
+      ${renderChart(sessions)}
+    </div>
+    <div class="card">
+      <h3>걸음 수</h3>
+      ${renderStepBars(steps) || '<div class="empty">걸음 수 기록이 없습니다.<br>설정에서 단축어를 연결하면 자동으로 쌓입니다.</div>'}
+    </div>
+    <div class="card">
+      <h3>세션 기록</h3>
+      <div id="logList" style="margin-top:4px"></div>
+    </div>
+  `;
+
+  // 메모는 사용자 입력이므로 textContent로 넣는다.
+  const list = root.querySelector('#logList');
+  if (recent.length === 0) {
+    list.innerHTML = '<div class="empty">아직 기록이 없습니다.</div>';
+    return;
+  }
+  for (const s of recent) {
+    const item = document.createElement('div');
+    item.className = 'log-item';
+
+    const head = document.createElement('div');
+    head.className = 'head';
+
+    const date = document.createElement('span');
+    date.style.fontWeight = '800';
+    date.textContent = fmtDate(s.date);
+    head.appendChild(date);
+
+    const type = document.createElement('span');
+    type.className = 'pill';
+    type.textContent = SESSION_TYPE_LABELS[s.type] || s.type;
+    head.appendChild(type);
+
+    if (s.type === 'run') {
+      const km = document.createElement('span');
+      km.className = 'muted';
+      km.style.fontSize = '13px';
+      km.textContent = `${s.distanceKm ?? 0}km`;
+      head.appendChild(km);
+
+      const pain = document.createElement('span');
+      pain.className = `pill ${s.hadPain ? 'warn' : 'ok'}`;
+      pain.style.marginLeft = 'auto';
+      pain.textContent = s.hadPain
+        ? `통증 ${s.painScore ?? 0}/10 · ${painFreeKm(s)}km`
+        : '통증 없음';
+      head.appendChild(pain);
+    }
+
+    item.appendChild(head);
+
+    if (s.memo) {
+      const memo = document.createElement('div');
+      memo.className = 'memo';
+      memo.textContent = s.memo;
+      item.appendChild(memo);
+    }
+    list.appendChild(item);
+  }
+}
 
 // ── 오늘 화면 ───────────────────────────────────────────────
 export function renderToday() {

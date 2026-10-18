@@ -225,3 +225,30 @@ export function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ── 차트 좌표 ───────────────────────────────────────────────
+export function chartPoints(sessions, width, height) {
+  const runs = (sessions || [])
+    .filter((s) => s.type === 'run')
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  if (runs.length === 0) return { points: [], maxKm: 0, minKm: 0 };
+
+  const values = runs.map(painFreeKm);
+  const rawMax = Math.max(...values);
+  const rawMin = Math.min(...values);
+  // 값이 전부 같으면 span이 0이 되어 y가 NaN이 된다. 위아래로 1km씩 벌린다.
+  const maxKm = rawMax === rawMin ? rawMax + 1 : rawMax;
+  const minKm = rawMax === rawMin ? Math.max(0, rawMin - 1) : rawMin;
+  const span = maxKm - minKm;
+
+  const points = runs.map((s, i) => {
+    const km = painFreeKm(s);
+    const x = runs.length === 1 ? width / 2 : (i / (runs.length - 1)) * width;
+    const y = height - ((km - minKm) / span) * height;
+    return { x, y, km, date: s.date, hadPain: !!s.hadPain };
+  });
+
+  return { points, maxKm, minKm };
+}
