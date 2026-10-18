@@ -347,8 +347,11 @@ function openSettings() {
         <li><b>통계 계산</b> 추가 → 연산 <b>합계</b>
           <br><span class="muted">합계가 샘플을 못 받으면 그 앞에
           <b>건강 샘플 세부사항 가져오기</b>를 넣고 세부사항을 <b>값</b>으로 지정하세요.</span></li>
-        <li><b>URL 열기</b> 추가 → 아래 주소를 직접 입력하고,
-          <code>steps=</code> 뒤에 합계 변수를 끼워넣기</li>
+        <li><b>텍스트</b> 추가 → 아래 주소를 직접 타이핑하고,
+          맨 뒤에 키보드 위 변수 막대에서 <b>합계</b>를 끼워넣기</li>
+        <li><b>URL 열기</b> 추가 → 3단계 텍스트가 자동으로 물립니다
+          <br><span class="muted">"합계 열기"로 뜨면 앞 동작이 잘못 연결된 겁니다.
+          유형을 URL로 바꾸지 마세요 — 숫자를 주소로 해석하라는 뜻이라 열리지 않습니다.</span></li>
         <li>단축어 이름을 정하고 <b>홈 화면에 추가</b></li>
       </ol>
       <code class="url">https://runner-recovery.vercel.app/?steps=</code>
