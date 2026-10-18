@@ -831,3 +831,21 @@ body.modal-open { overflow: hidden; }
 /* 바텀시트 모달(러닝 기록)은 기존 동작 유지 */
 .modal:not(.full) .modal-body { padding: 0; }
 .modal:not(.full) .modal-foot { display: flex; gap: 8px; margin-top: 4px; }
+
+/* ── 걸음 수 입력 버튼 ──────────────────────────────── */
+.done-btn {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.done-btn .done { margin-left: 0; }
+.done-add {
+  color: var(--brand);
+  font-weight: 800;
+  font-size: 13px;
+  border-bottom: 1px dashed var(--brand);
+}

@@ -197,28 +197,33 @@ export function pickMissions(pool, dateStr, count) {
 }
 
 // ── 걸음 수 쿼리 파라미터 (iOS 단축어) ──────────────────────
+// URL 파라미터와 직접 입력/붙여넣기가 같은 규칙을 쓰도록 여기로 모았다.
+export function parseStepsValue(raw) {
+  if (typeof raw !== 'string') return null;
+  // 단축어 합계는 "9,240" 처럼 구분자가 붙거나 "9240 걸음" 처럼 단위를 달고 온다.
+  // 꼬리에 숫자나 점이 남으면 "1e9" 같은 다른 형식이므로 통째로 거부한다.
+  const m = raw.replace(/[,\s\u00a0_]/g, '').match(/^(\d+(?:\.\d+)?)([^\d.]*)$/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_STEPS) return null;
+  return Math.round(n);
+}
+
 export function parseStepsParam(search, today) {
   let params;
   try { params = new URLSearchParams(search); } catch { return null; }
 
   const rawSteps = params.get('steps');
   if (rawSteps === null || rawSteps.trim() === '') return null;
-  // 단축어의 합계는 "9,240" 처럼 구분자가 붙거나 "9240 걸음" 처럼 단위를 달고 온다.
-  // 그대로 Number()에 넣으면 NaN이라 연동이 조용히 죽는다. 앞쪽 숫자만 떼어 쓰되
-  // 숫자로 시작하지 않는 입력은 그대로 거부한다.
-  // 꼬리는 단위(걸음·steps)만 허용한다. 숫자나 점이 남아 있으면 "1e9"나 "12.5.3"
-  // 같은 다른 형식이라는 뜻이므로 앞부분만 떼어 읽지 않고 통째로 거부한다.
-  const m = rawSteps.replace(/[,\s\u00a0_]/g, '').match(/^(\d+(?:\.\d+)?)([^\d.]*)$/);
-  if (!m) return null;
-  const steps = Number(m[1]);
-  if (!Number.isFinite(steps) || steps < 0 || steps > MAX_STEPS) return null;
+  const steps = parseStepsValue(rawSteps);
+  if (steps === null) return null;
 
   const rawDate = params.get('date');
   const date = rawDate === null ? today : rawDate;
   if (!isValidDateStr(date)) return null;
   if (date > today) return null; // 미래 날짜 거부
 
-  return { date, steps: Math.round(steps) };
+  return { date, steps };
 }
 
 // ── 주간 리포트 ──────────────────────────────────────────────

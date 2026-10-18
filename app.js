@@ -11,7 +11,7 @@ import {
   calcStreak, painFreeKm, nextLevel, pickMissions, parseStepsParam,
   weeklyReport, chartPoints, nextStepHint, pickTip, mealChecksFor, weightTrend,
   startingLevel, swipeIntent, adjacentTab, pullProgress, shouldRefresh, PULL_THRESHOLD,
-  phaseFor, doseFor, fmtDuration, PHASES,
+  phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   escapeHtml,
 } from './logic.js';
 
@@ -336,32 +336,28 @@ function openSettings() {
         홈 화면 아이콘 하나로 걸음 수까지 같이 들어옵니다.
       </p>
       <div class="block warn">
-        <div class="bt">이름이 비슷한 동작에 주의</div>
+        <div class="bt">홈 화면 앱과 Safari는 저장소가 다릅니다</div>
         <div class="muted">
-          <b>건강 샘플 기록</b>은 건강 앱에 값을 <b>써넣습니다</b>. 읽어오는 건
-          <b>건강 샘플 찾기</b>(영문 <i>Find Health Samples</i>)입니다.
-          검색창에 "건강"을 치고 <b>필터 / 정렬 기준 / 제한</b> 세 줄이 붙은 동작을 고르세요.
+          iOS는 홈 화면에 추가한 웹 앱과 Safari의 데이터를 따로 보관합니다.
+          단축어의 <b>URL 열기</b>는 Safari를 열기 때문에 홈 화면 앱에는 값이
+          들어오지 않습니다. 그래서 <b>클립보드에 복사</b>하는 방식을 씁니다.
         </div>
       </div>
       <ol class="howto">
         <li>단축어 앱 → 새 단축어 만들기</li>
-        <li><b>건강 샘플 찾기</b> 추가
-          <br>· 유형 <b>걸음 수</b>
-          <br>· 필터 추가 → 시작 날짜 → <b>오늘</b>
-          <br>· 제한 <b>끄기</b></li>
+        <li><b>건강 샘플 찾기</b> (영문 <i>Find Health Samples</i>) 추가
+          <br>· 유형 <b>걸음 수</b> · 필터 추가 → 시작 날짜 <b>오늘</b> · 제한 <b>끄기</b>
+          <br><span class="muted">이름이 비슷한 <b>건강 샘플 기록</b>은 값을 써넣는 동작입니다. 다른 것입니다.</span></li>
         <li><b>통계 계산</b> 추가 → 연산 <b>합계</b>
           <br><span class="muted">합계가 샘플을 못 받으면 그 앞에
           <b>건강 샘플 세부사항 가져오기</b>를 넣고 세부사항을 <b>값</b>으로 지정하세요.</span></li>
-        <li><b>텍스트</b> 추가 → 아래 주소를 직접 타이핑하고,
-          맨 뒤에 키보드 위 변수 막대에서 <b>합계</b>를 끼워넣기</li>
-        <li><b>URL 열기</b> 추가 → 3단계 텍스트가 자동으로 물립니다
-          <br><span class="muted">"합계 열기"로 뜨면 앞 동작이 잘못 연결된 겁니다.
-          유형을 URL로 바꾸지 마세요 — 숫자를 주소로 해석하라는 뜻이라 열리지 않습니다.</span></li>
-        <li>단축어 이름을 정하고 <b>홈 화면에 추가</b></li>
+        <li><b>클립보드에 복사</b> 추가 → 입력은 합계</li>
+        <li>단축어를 <b>홈 화면에 추가</b></li>
       </ol>
-      <code class="url">https://runner-recovery.vercel.app/?steps=</code>
-      <p class="muted" style="margin:8px 0 0;font-size:12px">
-        날짜를 빼면 오늘로 저장됩니다. 합계에 쉼표(9,240)가 붙어도 정상 인식합니다.
+      <p class="muted" style="margin:10px 0 0">
+        쓸 때는 단축어 아이콘을 한 번 누른 뒤, 이 앱 상단의 걸음 수를 눌러
+        <b>클립보드에서 붙여넣기</b>를 누르면 됩니다.
+        쉼표(9,240)나 단위(9240 걸음)가 붙어도 읽습니다.
       </p>
     </div>
 
@@ -707,7 +703,10 @@ export function renderToday() {
   parts.push(`
     <div class="topstats">
       <div class="streak">🔥 ${streak}일째</div>
-      ${doneLabel ? `<div class="done">${escapeHtml(doneLabel)} ✓</div>` : ''}
+      <button class="done-btn" id="stepsBtn" type="button">
+        ${doneLabel ? `<span class="done">${escapeHtml(doneLabel)} ✓</span>`
+                    : '<span class="done-add">걸음 수 입력</span>'}
+      </button>
     </div>
   `);
 
@@ -921,6 +920,9 @@ export function renderToday() {
     });
   });
 
+  const stepsBtn = root.querySelector('#stepsBtn');
+  if (stepsBtn) stepsBtn.addEventListener('click', openStepsModal);
+
   const errBtn = root.querySelector('#dismissStepsErr');
   if (errBtn) errBtn.addEventListener('click', () => { stepsError = null; renderToday(); });
 
@@ -948,6 +950,65 @@ export function renderToday() {
       store.set('sessions', list);
       renderToday();
     });
+  });
+}
+
+// ── 걸음 수 입력 ────────────────────────────────────────────
+// iOS는 홈 화면 웹 앱과 Safari의 저장소를 분리한다. 단축어의 "URL 열기"는
+// Safari를 열기 때문에 홈 화면 앱에는 값이 들어오지 않는다. 그래서 클립보드를
+// 경유하는 경로와 직접 입력을 둔다.
+function openStepsModal() {
+  const today = todayStr();
+  const current = getSteps()[today];
+
+  openModal(`
+    <label class="field">
+      <span>오늘 걸음 수</span>
+      <input type="text" id="spInput" inputmode="numeric" autocomplete="off"
+             placeholder="예: 9240" value="${Number.isFinite(current) ? current : ''}">
+    </label>
+    <button class="btn" id="spPaste" type="button">클립보드에서 붙여넣기</button>
+    <p class="muted" style="margin:10px 0 0;font-size:12px">
+      단축어가 걸음 수를 클립보드에 복사하도록 만들면 여기서 한 번에 넣을 수 있습니다.
+      설정 → 걸음 수 연동을 참고하세요.
+    </p>
+    <div id="spMsg"></div>
+  `, (modal) => {
+    const input = modal.querySelector('#spInput');
+    const msg = modal.querySelector('#spMsg');
+
+    const say = (text, bad) => {
+      msg.innerHTML = `<div class="block ${bad ? 'warn' : 'ok'}" style="margin-top:10px">
+        <div class="muted">${escapeHtml(text)}</div></div>`;
+    };
+
+    modal.querySelector('#spPaste').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        const n = parseStepsValue(text);
+        if (n === null) { say(`클립보드 내용을 숫자로 읽지 못했습니다: ${text.slice(0, 40)}`, true); return; }
+        input.value = n;
+        say(`${n.toLocaleString('ko-KR')}보를 가져왔습니다. 저장을 누르세요.`);
+      } catch {
+        say('클립보드를 읽지 못했습니다. 숫자를 직접 입력해주세요.', true);
+      }
+    });
+
+    modal.querySelector('#spCancel').addEventListener('click', closeModal);
+    modal.querySelector('#spSave').addEventListener('click', () => {
+      const n = parseStepsValue(input.value);
+      if (n === null) { say('0 이상의 숫자를 입력해주세요.', true); return; }
+      const steps = getSteps();
+      steps[today] = n;
+      store.set('steps', steps);
+      stepsError = null;
+      closeModal();
+      renderToday();
+    });
+  }, {
+    footer: `
+      <button class="btn btn-ghost" id="spCancel" type="button">취소</button>
+      <button class="btn btn-primary" id="spSave" type="button">저장</button>`,
   });
 }
 
