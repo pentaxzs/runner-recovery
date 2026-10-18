@@ -32,6 +32,7 @@ const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
 const getWeights = () => store.get('weights', {});
 const mealsToday = (dateStr) => mealChecksFor(dateStr, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
 const lightSets = (sets) => Math.max(2, Math.round(sets * LIGHT_FACTOR));
+let stepsError = null; // 단축어가 보낸 값을 못 읽었을 때 화면에 띄운다
 
 // ── 상태 접근 ────────────────────────────────────────────────
 const getSettings = () => ({ ...DEFAULT_SETTINGS, ...store.get('settings', {}) });
@@ -89,6 +90,10 @@ export function activateTab(name, dir) {
 function absorbStepsParam() {
   const parsed = parseStepsParam(location.search, todayStr());
   if (!parsed) {
+    // steps가 왔는데 못 읽었으면 조용히 넘기지 않는다. 단축어를 고칠 단서가 없어진다.
+    let raw = null;
+    try { raw = new URLSearchParams(location.search).get('steps'); } catch { /* 무시 */ }
+    if (raw !== null) stepsError = raw;
     if (location.search) history.replaceState({}, '', location.pathname);
     return;
   }
@@ -677,6 +682,20 @@ export function renderToday() {
 
   const parts = [];
 
+  // 0. 단축어 값이 안 읽혔으면 원문을 보여준다
+  if (stepsError !== null) {
+    parts.push(`
+      <div class="card">
+        <div class="block warn">
+          <div class="bt">걸음 수를 읽지 못했습니다</div>
+          <div class="muted">단축어가 보낸 값: <code>${escapeHtml(stepsError)}</code><br>
+            숫자로 시작해야 합니다. 설정 → 걸음 수 연동에서 단계를 다시 확인해보세요.</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" id="dismissStepsErr" type="button" style="width:100%;margin-top:8px">확인</button>
+      </div>
+    `);
+  }
+
   // 1. 이미 해낸 것
   const stepCount = steps[today];
   let doneLabel = '';
@@ -901,6 +920,9 @@ export function renderToday() {
       renderToday();
     });
   });
+
+  const errBtn = root.querySelector('#dismissStepsErr');
+  if (errBtn) errBtn.addEventListener('click', () => { stepsError = null; renderToday(); });
 
   const runBtn = root.querySelector('#logRunBtn');
   if (runBtn) runBtn.addEventListener('click', openRunModal);

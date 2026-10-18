@@ -48,8 +48,22 @@ test('a decimal sum is still rounded', () => {
   assert.deepEqual(parseStepsParam('?steps=9,240.6', TODAY), { date: TODAY, steps: 9241 });
 });
 
-test('stripping separators does not turn text into a number', () => {
-  for (const bad of ['?steps=9,240보', '?steps=a,b,c', '?steps=,,,', '?steps=-,5']) {
+test('a trailing unit from the Health sample is tolerated', () => {
+  // 합계 변수가 "9240 걸음" 처럼 단위를 달고 오는 경우가 있다.
+  assert.deepEqual(parseStepsParam('?steps=9240%20걸음', TODAY), { date: TODAY, steps: 9240 });
+  assert.deepEqual(parseStepsParam('?steps=9,240걸음', TODAY), { date: TODAY, steps: 9240 });
+  assert.deepEqual(parseStepsParam('?steps=9240%20steps', TODAY), { date: TODAY, steps: 9240 });
+});
+
+test('input that does not start with a number is still rejected', () => {
+  for (const bad of ['?steps=a,b,c', '?steps=,,,', '?steps=-,5', '?steps=걸음9240', '?steps=.']) {
+    assert.equal(parseStepsParam(bad, TODAY), null, `expected null for ${bad}`);
+  }
+});
+
+test('a numeric tail means a different format, not a unit', () => {
+  // "1e9"에서 앞의 1만 떼어 읽으면 조용히 틀린 값을 저장하게 된다.
+  for (const bad of ['?steps=1e9', '?steps=12.5.3', '?steps=9240e2']) {
     assert.equal(parseStepsParam(bad, TODAY), null, `expected null for ${bad}`);
   }
 });
