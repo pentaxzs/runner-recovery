@@ -110,3 +110,62 @@ export function nextLevel(currentLevel, runSessions, ladderLength) {
 
   return { level: currentLevel, reason: '한 번 더 통증 없이 끝내면 올립니다', paused: false };
 }
+
+// ── 자투리 미션 선택 ────────────────────────────────────────
+const WEEKDAY_CONTEXTS = ['subway', 'desk', 'lunch', 'home'];
+const WEEKEND_CONTEXTS = ['home', 'outdoor'];
+export const MAX_STEPS = 100000;
+
+function dateSeed(dateStr) {
+  let h = 2166136261;
+  for (let i = 0; i < dateStr.length; i++) {
+    h ^= dateStr.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  let a = seed;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// 날짜를 시드로 쓰므로 같은 날은 항상 같은 미션, 다음 날이면 바뀐다.
+export function pickMissions(pool, dateStr, count) {
+  if (!Array.isArray(pool) || pool.length === 0) return [];
+  const day = parseLocalDate(dateStr).getDay();
+  const allowed = day === 0 || day === 6 ? WEEKEND_CONTEXTS : WEEKDAY_CONTEXTS;
+  const candidates = pool.filter((m) => allowed.includes(m.context));
+  if (candidates.length === 0) return [];
+
+  const rand = mulberry32(dateSeed(dateStr));
+  const shuffled = [...candidates];
+  for (let i = shuffled.length - 1; i > 0; i--) { // Fisher-Yates
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+// ── 걸음 수 쿼리 파라미터 (iOS 단축어) ──────────────────────
+export function parseStepsParam(search, today) {
+  let params;
+  try { params = new URLSearchParams(search); } catch { return null; }
+
+  const rawSteps = params.get('steps');
+  if (rawSteps === null || rawSteps.trim() === '') return null;
+  const steps = Number(rawSteps);
+  if (!Number.isFinite(steps) || steps < 0 || steps > MAX_STEPS) return null;
+
+  const rawDate = params.get('date');
+  const date = rawDate === null ? today : rawDate;
+  if (!isValidDateStr(date)) return null;
+  if (date > today) return null; // 미래 날짜 거부
+
+  return { date, steps: Math.round(steps) };
+}
