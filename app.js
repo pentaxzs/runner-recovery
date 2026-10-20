@@ -15,7 +15,7 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
-  cheerStage, pickCheer, advanceTimer,
+  cheerStage, pickCheer, cheersAt, advanceTimer,
   escapeHtml,
 } from './logic.js';
 
@@ -1210,12 +1210,14 @@ export function renderToday() {
       const stage = essential
         ? cheerStage(todoDone + (turnedOn ? 1 : -1), todoTotal)
         : 'progress';
+      // "시작이 반"처럼 첫 체크에서만 참인 말을 가리려면 오늘 누른 횟수가 필요하다
+      const checkedToday = latest[today].length;
 
       renderToday(); // 불꽃은 다시 그린 뒤에 붙여야 같이 지워지지 않는다
       if (!turnedOn) { hideCheer(); return; }
       const fresh = root.querySelector(`input[data-check="${CSS.escape(id)}"]`);
       if (fresh) sparkle(fresh);
-      showCheer(stage, today);
+      showCheer(stage, today, checkedToday);
     });
   });
 
@@ -1615,7 +1617,7 @@ function closeRunTimer() {
 // ── 체크 축하 ───────────────────────────────────────────────
 // 체크 하나를 누른 직후에만 뜬다. 끄는 건 축하할 일이 아니다.
 const CHEER_MS = { progress: 1900, almost: 1900, complete: 5000 };
-const lastCheer = { progress: -1, almost: -1 };
+const lastCheer = { progress: null, almost: null };
 let cheerTimer = null;
 
 function sparkle(input) {
@@ -1653,7 +1655,7 @@ function hideCheer() {
   cheerTimer = setTimeout(() => { el.hidden = true; }, 340);
 }
 
-function showCheer(stage, dateStr) {
+function showCheer(stage, dateStr, done) {
   const el = document.getElementById('cheer');
   if (!el || !stage) return;
   const ms = CHEER_MS[stage];
@@ -1665,11 +1667,13 @@ function showCheer(stage, dateStr) {
     body = `<div class="q">\u201C${escapeHtml(q.text)}\u201D</div><div class="by">— ${escapeHtml(q.by)}</div>`;
   } else {
     const pool = stage === 'almost' ? CHEER_ALMOST : CHEER_PROGRESS;
-    const got = pickCheer(pool, Math.random, lastCheer[stage]);
+    // 지금 시각과 오늘 몇 번째 체크인지에 맞는 문구만 후보로 남긴다
+    const fit = cheersAt(pool, { hour: new Date().getHours(), done });
+    const got = pickCheer(fit, Math.random, lastCheer[stage]);
     if (!got) return;
-    lastCheer[stage] = got.index;
-    body = `<div class="cheer-line"><span class="emo">${escapeHtml(got.cheer.emoji)}</span>` +
-      `<span class="msg">${escapeHtml(got.cheer.text)}</span></div>`;
+    lastCheer[stage] = got;
+    body = `<div class="cheer-line"><span class="emo">${escapeHtml(got.emoji)}</span>` +
+      `<span class="msg">${escapeHtml(got.text)}</span></div>`;
   }
 
   clearTimeout(cheerTimer);

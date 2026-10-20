@@ -254,12 +254,16 @@ export const HIGH_LOAD_IDS = ACTIVITIES.filter((a) => a.load === 'high').map((a)
 // logic.js의 pickCheer가 맡는다.
 export const CHEER_PROGRESS = [
   { emoji: '🔥', text: '좋아요. 계속 갑시다.' },
-  { emoji: '👊', text: '시작이 반입니다.' },
   { emoji: '⚡', text: '한 개 들어갔습니다.' },
   { emoji: '🙌', text: '오늘도 눌렀네요.' },
   { emoji: '💡', text: '하나 했으면 나머지도 합니다.' },
-  { emoji: '🌙', text: '늦은 시간에도 왔군요.' },
   { emoji: '🧱', text: '한 장씩 쌓는 중.' },
+  { emoji: '✍️', text: '기록에 남았습니다.' },
+  { emoji: '👊', text: '시작이 반입니다.', first: true },
+  { emoji: '🌙', text: '늦은 시간에도 왔군요.', after: 21 },
+  { emoji: '🛏️', text: '자기 전에 챙기셨네요.', after: 22 },
+  { emoji: '☀️', text: '아침부터 하나 해두면 저녁이 편합니다.', before: 9 },
+  { emoji: '🍚', text: '점심 전에 하나 끝냈습니다.', before: 12 },
 ];
 
 export const CHEER_ALMOST = [
@@ -267,8 +271,9 @@ export const CHEER_ALMOST = [
   { emoji: '🎯', text: '딱 하나 남았습니다.' },
   { emoji: '🔥', text: '여기서 멈추기 아깝습니다.' },
   { emoji: '👀', text: '마지막 하나.' },
-  { emoji: '🚀', text: '하나만 더. 2분이면 됩니다.' },
   { emoji: '🪜', text: '한 칸 남았습니다.' },
+  { emoji: '🚀', text: '여기까지 왔으면 다 한 겁니다.' },
+  { emoji: '🌙', text: '늦었지만 하나 남았습니다.', after: 21 },
 ];
 
 // 완료는 하루에 한 번뿐이라 긴 문장을 둘 수 있다. 날짜 시드로 고르므로

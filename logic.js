@@ -602,20 +602,32 @@ export function cheerStage(done, total) {
 
 // 같은 말이 연달아 나오면 풀이 아무리 커도 자동응답처럼 느껴진다. 직전
 // 항목을 뺀 나머지에서 고르므로 치우침 없이 고르게 돈다.
-export function pickCheer(pool, rand, lastIndex) {
-  if (!Array.isArray(pool) || pool.length === 0) return null;
-  const n = pool.length;
-  if (n === 1) return { index: 0, cheer: pool[0] };
+// 맥락에 맞지 않는 문구는 뽑기 전에 후보에서 뺀다. 낮에 "늦은 시간에도
+// 왔군요"가 뜨면 앱이 나를 안 보고 있다는 뜻이 된다. 조건이 없는 문구는
+// 언제나 남으므로 후보가 비는 일은 없다.
+//
+//   after  — 이 시각부터 (21이면 21:00~23:59)
+//   before — 이 시각 전까지 (9면 00:00~08:59)
+//   first  — 오늘의 첫 체크일 때만
+export function cheersAt(pool, ctx) {
+  const { hour, done } = ctx || {};
+  return (pool || []).filter((c) => {
+    if (Number.isFinite(c.after) && !(hour >= c.after)) return false;
+    if (Number.isFinite(c.before) && !(hour < c.before)) return false;
+    if (c.first && done !== 1) return false;
+    return true;
+  });
+}
 
-  const avoid = Number.isInteger(lastIndex) && lastIndex >= 0 && lastIndex < n;
-  let i;
-  if (avoid) {
-    i = Math.min(Math.floor(rand() * (n - 1)), n - 2);
-    if (i >= lastIndex) i += 1;
-  } else {
-    i = Math.min(Math.floor(rand() * n), n - 1);
-  }
-  return { index: i, cheer: pool[i] };
+// 같은 말이 연달아 나오면 풀이 아무리 커도 자동응답처럼 느껴진다. 직전에
+// 나온 것을 뺀 나머지에서 고른다. 인덱스가 아니라 값으로 기억하는 건,
+// cheersAt이 걸러낸 뒤에는 같은 인덱스가 다른 문구를 가리키기 때문이다.
+export function pickCheer(pool, rand, last) {
+  if (!Array.isArray(pool) || pool.length === 0) return null;
+
+  const others = pool.filter((c) => c !== last);
+  const from = others.length ? others : pool;
+  return from[Math.min(Math.floor(rand() * from.length), from.length - 1)];
 }
 
 export function countCheckDays(checks, id, dates) {
