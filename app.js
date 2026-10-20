@@ -15,7 +15,7 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
-  cheerStage, pickCheer,
+  cheerStage, pickCheer, advanceTimer,
   escapeHtml,
 } from './logic.js';
 
@@ -34,6 +34,7 @@ const PAUSE_DAYS = 14;
 const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
 
 const getWeights = () => store.get('weights', {});
+const getRunTimer = () => store.get('runTimer', {});
 const getMuscle = () => store.get('muscle', {});
 const getFatMass = () => store.get('fatmass', {});
 const mealsToday = (dateStr) => mealChecksFor(dateStr, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
@@ -410,7 +411,7 @@ function openSettings() {
     modal.querySelector('#stReset').addEventListener('click', () => {
       if (!confirm('모든 기록을 지웁니다. 계속할까요?')) return;
       if (!confirm('정말 지웁니다. 되돌릴 수 없습니다.')) return;
-      for (const k of ['checks', 'sessions', 'steps', 'weights', 'muscle', 'fatmass', 'waist', 'bodyfat', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
+      for (const k of ['checks', 'sessions', 'steps', 'weights', 'muscle', 'fatmass', 'runTimer', 'waist', 'bodyfat', 'lightDay', 'settings', 'lastTab', 'installHintDismissed']) {
         store.remove(k);
       }
       closeModal();
@@ -1021,6 +1022,15 @@ export function renderToday() {
   const runBlock = runToday ? `
     <div class="run-block">
       <div class="label">러닝 · Lv${level.level}${store.get('lightDay', '') === today ? ' · 가볍게' : ''}</div>
+      ${level.runMin > 0 ? (() => {
+        const n = getRunTimer()[today] || 0;
+        return `<button class="rt-open" id="rtOpen" type="button" aria-label="러닝 타이머">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.1" aria-hidden="true">
+            <circle cx="12" cy="13" r="8"/><path d="M12 9.5V13l2.4 1.6"/><path d="M9 2h6"/>
+          </svg>${n ? `<span class="n">${n}</span>` : ''}
+        </button>`;
+      })() : ''}
       ${(() => {
         const lightOn = store.get('lightDay', '') === today;
         const sets = lightOn ? lightSets(level.sets) : level.sets;
@@ -1218,6 +1228,15 @@ export function renderToday() {
   const runBtn = root.querySelector('#logRunBtn');
   if (runBtn) runBtn.addEventListener('click', openRunModal);
 
+  const rtBtn = root.querySelector('#rtOpen');
+  if (rtBtn) {
+    rtBtn.addEventListener('click', () => {
+      const lv = ladderAt(settings.runLevel);
+      const lightOn = store.get('lightDay', '') === today;
+      openRunTimer(lv, lightOn ? lightSets(lv.sets) : lv.sets);
+    });
+  }
+
   const lightBtn = root.querySelector('#lightBtn');
   if (lightBtn) {
     lightBtn.addEventListener('click', () => {
@@ -1408,6 +1427,141 @@ function showLevelToast(decided) {
 // ── 모달 공통 ───────────────────────────────────────────────
 // opts.fullscreen: 딤 없이 화면을 채운다. opts.footer: 스크롤과 무관하게 하단 고정.
 // opts.title: 전체화면일 때 상단에 남는 제목.
+// ── 러닝 타이머 ─────────────────────────────────────────────
+// 뛰면서 손에 들고 보는 화면이다. 한 세트(뛰기+걷기)는 자동으로 넘어가고,
+// 세트가 끝나면 선다. 세트 사이를 직접 누르게 두는 건 통증이 오면 거기서
+// 그만둘 자리를 만들기 위해서다.
+const rt = { phase: 'idle', left: 0, runSec: 0, walkSec: 0, sets: 0, raf: 0, prev: 0, lock: null };
+
+const fmtClock = (sec) => {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+async function holdScreen(on) {
+  try {
+    if (on) {
+      if (!rt.lock && 'wakeLock' in navigator) rt.lock = await navigator.wakeLock.request('screen');
+    } else if (rt.lock) {
+      await rt.lock.release();
+      rt.lock = null;
+    }
+  } catch { rt.lock = null; } // 지원하지 않거나 거부되면 그냥 화면이 꺼진다
+}
+
+function rtSetsToday() {
+  return getRunTimer()[todayStr()] || 0;
+}
+
+function rtBumpSet() {
+  const map = getRunTimer();
+  const d = todayStr();
+  map[d] = (map[d] || 0) + 1;
+  // 지난 날짜는 들고 있을 이유가 없다. 자정이 지나면 0부터 시작한다.
+  for (const k of Object.keys(map)) if (k !== d) delete map[k];
+  store.set('runTimer', map);
+}
+
+function rtPaint() {
+  const el = document.getElementById('runtimer');
+  if (!el || el.hidden) return;
+  const done = rtSetsToday();
+  const phaseLen = rt.phase === 'walk' ? rt.walkSec : rt.runSec;
+
+  let phaseText, nextText, actText, actCls;
+  if (rt.phase === 'run') {
+    phaseText = '🏃 뛰기';
+    nextText = `끝나면 걷기 ${Math.round(rt.walkSec / 60)}분으로 바로 넘어갑니다`;
+    actText = '멈추기'; actCls = 'rt-act stop';
+  } else if (rt.phase === 'walk') {
+    phaseText = '🚶 걷기';
+    nextText = '걷기가 끝나면 여기서 멈춥니다';
+    actText = '멈추기'; actCls = 'rt-act stop';
+  } else if (rt.phase === 'rest') {
+    phaseText = done >= rt.sets ? '오늘 몫 완료' : `${done}세트 끝`;
+    nextText = done >= rt.sets ? `쿨다운 걷기 ${COOLDOWN_MIN}분으로 마무리하세요` : '숨 고르고 다음 세트를 누르세요';
+    actText = done >= rt.sets ? '한 세트 더' : '다음 세트'; actCls = 'rt-act';
+  } else {
+    phaseText = '준비';
+    nextText = '시작을 누르면 뛰기부터';
+    actText = '시작'; actCls = 'rt-act';
+  }
+
+  el.className = `rt${rt.phase === 'run' ? ' run' : rt.phase === 'walk' ? ' walk' : ''}`;
+  el.innerHTML = `
+    <div class="rt-head">
+      <span class="lv">Lv${rt.level} · 뛰기 ${Math.round(rt.runSec / 60)}분 / 걷기 ${Math.round(rt.walkSec / 60)}분</span>
+      <button class="rt-x" id="rtClose" type="button" aria-label="닫기">×</button>
+    </div>
+    <div class="rt-bar"><i style="transform:scaleX(${phaseLen ? Math.max(0, rt.left) / phaseLen : 0})"></i></div>
+    <div class="rt-body">
+      <div class="rt-phase">${phaseText}</div>
+      <div class="rt-clock">${fmtClock(rt.left)}</div>
+      <div class="rt-next">${escapeHtml(nextText)}</div>
+      <div class="rt-sets"><span class="big">${done} / ${rt.sets}</span><span class="lbl">오늘 한 세트</span></div>
+      <div class="rt-dots">${Array.from({ length: rt.sets },
+        (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>
+    </div>
+    <div class="rt-foot"><button class="${actCls}" id="rtAct" type="button">${actText}</button></div>`;
+
+  document.getElementById('rtClose').addEventListener('click', closeRunTimer);
+  document.getElementById('rtAct').addEventListener('click', rtAction);
+}
+
+function rtLoop() {
+  const now = performance.now();
+  const elapsed = (now - rt.prev) / 1000;
+  rt.prev = now;
+
+  const next = advanceTimer(rt, elapsed);
+  rt.phase = next.phase;
+  rt.left = next.left;
+  if (next.completedSet) {
+    rtBumpSet();
+    holdScreen(false);
+    renderToday(); // 아이콘 배지도 같이 올라간다
+  }
+  rtPaint();
+  if (rt.phase === 'run' || rt.phase === 'walk') rt.raf = requestAnimationFrame(rtLoop);
+}
+
+function rtAction() {
+  if (rt.phase === 'run' || rt.phase === 'walk') {
+    cancelAnimationFrame(rt.raf);
+    rt.phase = 'idle';
+    rt.left = rt.runSec;
+    holdScreen(false);
+  } else {
+    rt.phase = 'run';
+    rt.left = rt.runSec;
+    rt.prev = performance.now();
+    holdScreen(true);
+    rt.raf = requestAnimationFrame(rtLoop);
+  }
+  rtPaint();
+}
+
+function openRunTimer(level, sets) {
+  rt.level = level.level;
+  rt.runSec = level.runMin * 60;
+  rt.walkSec = level.walkMin * 60;
+  rt.sets = sets;
+  rt.phase = 'idle';
+  rt.left = rt.runSec;
+  const el = document.getElementById('runtimer');
+  el.hidden = false;
+  rtPaint();
+}
+
+function closeRunTimer() {
+  cancelAnimationFrame(rt.raf);
+  rt.phase = 'idle';
+  holdScreen(false);
+  const el = document.getElementById('runtimer');
+  el.hidden = true;
+  el.innerHTML = '';
+}
+
 // ── 체크 축하 ───────────────────────────────────────────────
 // 체크 하나를 누른 직후에만 뜬다. 끄는 건 축하할 일이 아니다.
 const CHEER_MS = { progress: 1900, almost: 1900, complete: 5000 };

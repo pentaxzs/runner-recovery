@@ -555,6 +555,36 @@ export function bodyVerdict(fat, muscle) {
   return 'flat';
 }
 
+// ── 러닝 타이머 ─────────────────────────────────────────────
+// 한 세트는 뛰기 하나 + 걷기 하나다. 걷기가 끝나면 거기서 서고, 다음 세트는
+// 직접 눌러서 시작한다 — 통증이 오면 세트 사이가 끊어줄 자리다.
+//
+// 화면이 잠기거나 탭이 가려지면 경과가 한 번에 뭉쳐 들어온다. 넘친 만큼을
+// 버리면 타이머가 실제 시간보다 느려지므로 다음 구간으로 넘긴다. 다만 아무리
+// 긴 시간이 와도 세트는 하나만 오른다.
+export function advanceTimer(state, elapsedSec) {
+  const { phase, runSec, walkSec } = state;
+  let left = state.left;
+
+  if (phase !== 'run' && phase !== 'walk') {
+    return { phase, left, runSec, walkSec, completedSet: false };
+  }
+
+  let rest = Math.max(0, Number(elapsedSec) || 0);
+  let now = phase;
+  left -= rest;
+
+  if (left > 0) return { phase: now, left, runSec, walkSec, completedSet: false };
+
+  if (now === 'run') {
+    now = 'walk';
+    left += walkSec; // 넘친 만큼이 이미 빠진 상태로 걷기를 시작한다
+    if (left > 0) return { phase: now, left, runSec, walkSec, completedSet: false };
+  }
+
+  return { phase: 'rest', left: 0, runSec, walkSec, completedSet: true };
+}
+
 // ── 체크 축하 ───────────────────────────────────────────────
 // 체크 하나하나가 같은 무게는 아니다. 마지막 하나를 남겨둔 순간이 제일 잘
 // 움직이는 지점이라 따로 센다.
