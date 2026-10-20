@@ -992,13 +992,16 @@ body.modal-open { overflow: hidden; }
 .cheer .msg { font-size: 14px; font-weight: 700; line-height: 1.45; }
 .cheer .q { font-size: 14.5px; font-weight: 700; line-height: 1.55; }
 .cheer .by { margin-top: 7px; font-size: 12px; font-weight: 700; opacity: 0.62; }
+/* 시트 배경은 테마를 따라 뒤집히므로 막대를 흰색으로 박으면 다크 모드에서
+   밝은 시트 위에 흰 막대가 올라가 사라진다. 글자색을 따라가게 둔다. */
 .cheer .bar {
   position: absolute;
   left: 0;
   bottom: 0;
   height: 2px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.45);
+  background: currentColor;
+  opacity: 0.45;
   transform-origin: left;
 }
 
@@ -1058,13 +1061,16 @@ body.modal-open { overflow: hidden; }
 
 /* 뛰면서 보는 화면이라 전부 크고, 색이 통째로 바뀐다. 숨이 차서 글자를
    못 읽어도 지금이 뛰는 구간인지 걷는 구간인지는 색으로 안다. */
+/* 타이머는 두 테마 모두에서 어두운 화면이다. 뛰기·걷기가 고정 파랑·초록인데
+   대기만 테마를 따라가면 구간이 바뀔 때마다 밝기가 튄다. 게다가 --text는
+   다크 모드에서 거의 흰색으로 뒤집혀 흰 글자가 사라진다. */
 .rt {
   position: fixed;
   inset: 0;
   z-index: 60;
   display: flex;
   flex-direction: column;
-  background: var(--text);
+  background: #0f172a;
   color: #fff;
 }
 /* display:flex는 작성자 스타일이라 브라우저 기본 [hidden]{display:none}을
@@ -1104,6 +1110,6 @@ body.modal-open { overflow: hidden; }
   cursor: pointer;
   border: 0;
   background: #fff;
-  color: var(--text);
+  color: #0f172a;
 }
 .rt-act.stop { background: rgba(255, 255, 255, .14); color: #fff; border: 1px solid rgba(255, 255, 255, .4); }
