@@ -1431,7 +1431,7 @@ function showLevelToast(decided) {
 // 뛰면서 손에 들고 보는 화면이다. 한 세트(뛰기+걷기)는 자동으로 넘어가고,
 // 세트가 끝나면 선다. 세트 사이를 직접 누르게 두는 건 통증이 오면 거기서
 // 그만둘 자리를 만들기 위해서다.
-const rt = { phase: 'idle', left: 0, runSec: 0, walkSec: 0, sets: 0, raf: 0, prev: 0, lock: null };
+const rt = { phase: 'idle', left: 0, runSec: 0, walkSec: 0, sets: 0, raf: 0, prev: 0, lock: null, paused: false };
 
 const fmtClock = (sec) => {
   const s = Math.max(0, Math.ceil(sec));
@@ -1497,7 +1497,11 @@ function rtPaint() {
   const phaseLen = rt.phase === 'walk' ? rt.walkSec : rt.runSec;
 
   let phaseText, nextText, actText, actCls;
-  if (rt.phase === 'run') {
+  if (rt.paused && (rt.phase === 'run' || rt.phase === 'walk')) {
+    phaseText = rt.phase === 'run' ? '⏸ 뛰기 멈춤' : '⏸ 걷기 멈춤';
+    nextText = '이어서 누르면 멈춘 자리에서 계속됩니다';
+    actText = '이어서'; actCls = 'rt-act';
+  } else if (rt.phase === 'run') {
     phaseText = '🏃 뛰기';
     nextText = `끝나면 걷기 ${Math.round(rt.walkSec / 60)}분으로 바로 넘어갑니다`;
     actText = '멈추기'; actCls = 'rt-act stop';
@@ -1552,18 +1556,28 @@ function rtLoop() {
   if (rt.phase === 'run' || rt.phase === 'walk') rt.raf = requestAnimationFrame(rtLoop);
 }
 
+// 멈추기는 그 자리에서 시계를 세울 뿐, 되감지 않는다. 통증 때문에 잠깐 서는
+// 것과 그만두는 것은 다른 일이다. 세트를 버리려면 ×로 닫으면 된다.
+function rtResume() {
+  rt.paused = false;
+  rt.prev = performance.now(); // 멈춰 있던 시간이 한꺼번에 빠지지 않도록
+  holdScreen(true);
+  rt.raf = requestAnimationFrame(rtLoop);
+}
+
 function rtAction() {
   if (rt.phase === 'run' || rt.phase === 'walk') {
-    cancelAnimationFrame(rt.raf);
-    rt.phase = 'idle';
-    rt.left = rt.runSec;
-    holdScreen(false);
+    if (rt.paused) {
+      rtResume();
+    } else {
+      cancelAnimationFrame(rt.raf);
+      rt.paused = true;
+      holdScreen(false);
+    }
   } else {
     rt.phase = 'run';
     rt.left = rt.runSec;
-    rt.prev = performance.now();
-    holdScreen(true);
-    rt.raf = requestAnimationFrame(rtLoop);
+    rtResume();
   }
   rtPaint();
 }
@@ -1575,6 +1589,7 @@ function openRunTimer(level, sets) {
   rt.sets = sets;
   rt.phase = 'idle';
   rt.left = rt.runSec;
+  rt.paused = false;
   const el = document.getElementById('runtimer');
   el.hidden = false;
   rtBuild();
@@ -1584,6 +1599,7 @@ function openRunTimer(level, sets) {
 function closeRunTimer() {
   cancelAnimationFrame(rt.raf);
   rt.phase = 'idle';
+  rt.paused = false;
   holdScreen(false);
   const el = document.getElementById('runtimer');
   el.hidden = true;
