@@ -1431,7 +1431,7 @@ function showLevelToast(decided) {
 // 뛰면서 손에 들고 보는 화면이다. 한 세트(뛰기+걷기)는 자동으로 넘어가고,
 // 세트가 끝나면 선다. 세트 사이를 직접 누르게 두는 건 통증이 오면 거기서
 // 그만둘 자리를 만들기 위해서다.
-const rt = { phase: 'idle', left: 0, runSec: 0, walkSec: 0, sets: 0, raf: 0, prev: 0, lock: null, paused: false };
+const rt = { phase: 'idle', left: 0, runSec: 0, walkSec: 0, sets: 0, raf: 0, prev: 0, lock: null, paused: false, continueSets: false };
 
 const fmtClock = (sec) => {
   const s = Math.max(0, Math.ceil(sec));
@@ -1507,7 +1507,9 @@ function rtPaint() {
     actText = '멈추기'; actCls = 'rt-act stop';
   } else if (rt.phase === 'walk') {
     phaseText = '🚶 걷기';
-    nextText = '걷기가 끝나면 여기서 멈춥니다';
+    nextText = rt.continueSets
+      ? '끝나면 다음 세트로 바로 이어집니다'
+      : '마지막 세트입니다. 걷기가 끝나면 멈춥니다';
     actText = '멈추기'; actCls = 'rt-act stop';
   } else if (rt.phase === 'rest') {
     phaseText = done >= rt.sets ? '오늘 몫 완료' : `${done}세트 끝`;
@@ -1544,16 +1546,20 @@ function rtLoop() {
   const elapsed = (now - rt.prev) / 1000;
   rt.prev = now;
 
+  // 지금 도는 세트를 적립하고 나서도 남은 세트가 있으면 멈추지 않고 잇는다
+  rt.continueSets = rtSetsToday() + 1 < rt.sets;
+
   const next = advanceTimer(rt, elapsed);
   rt.phase = next.phase;
   rt.left = next.left;
   if (next.completedSet) {
     rtBumpSet();
-    holdScreen(false);
     renderToday(); // 아이콘 배지도 같이 올라간다
   }
   rtPaint();
+
   if (rt.phase === 'run' || rt.phase === 'walk') rt.raf = requestAnimationFrame(rtLoop);
+  else holdScreen(false); // 다 끝났을 때만 화면을 놓는다
 }
 
 // 멈추기는 그 자리에서 시계를 세울 뿐, 되감지 않는다. 통증 때문에 잠깐 서는
