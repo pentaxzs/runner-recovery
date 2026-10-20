@@ -1462,6 +1462,34 @@ function rtBumpSet() {
   store.set('runTimer', map);
 }
 
+// 프레임마다 innerHTML을 다시 쓰면 버튼이 초당 60번 교체돼서, 누르는 사이에
+// 엘리먼트가 사라진다. 탭은 pointerdown과 pointerup이 같은 엘리먼트에서
+// 이어져야 성립하므로 click이 영영 발생하지 않는다. 그래서 뼈대는 열 때 한
+// 번만 세우고, 도는 동안에는 숫자와 색만 바꾼다.
+function rtBuild() {
+  const el = document.getElementById('runtimer');
+  el.innerHTML = `
+    <div class="rt-head">
+      <span class="lv" id="rtLv"></span>
+      <button class="rt-x" id="rtClose" type="button" aria-label="닫기">×</button>
+    </div>
+    <div class="rt-bar"><i id="rtBar"></i></div>
+    <div class="rt-body">
+      <div class="rt-phase" id="rtPhase"></div>
+      <div class="rt-clock" id="rtClock"></div>
+      <div class="rt-next" id="rtNext"></div>
+      <div class="rt-sets"><span class="big" id="rtSets"></span><span class="lbl">오늘 한 세트</span></div>
+      <div class="rt-dots" id="rtDots"></div>
+    </div>
+    <div class="rt-foot"><button class="rt-act" id="rtAct" type="button"></button></div>`;
+
+  el.querySelector('#rtClose').addEventListener('click', closeRunTimer);
+  el.querySelector('#rtAct').addEventListener('click', rtAction);
+  el.querySelector('#rtLv').textContent =
+    `Lv${rt.level} · 뛰기 ${Math.round(rt.runSec / 60)}분 / 걷기 ${Math.round(rt.walkSec / 60)}분`;
+  rt.dotsDrawn = -1;
+}
+
 function rtPaint() {
   const el = document.getElementById('runtimer');
   if (!el || el.hidden) return;
@@ -1488,24 +1516,23 @@ function rtPaint() {
   }
 
   el.className = `rt${rt.phase === 'run' ? ' run' : rt.phase === 'walk' ? ' walk' : ''}`;
-  el.innerHTML = `
-    <div class="rt-head">
-      <span class="lv">Lv${rt.level} · 뛰기 ${Math.round(rt.runSec / 60)}분 / 걷기 ${Math.round(rt.walkSec / 60)}분</span>
-      <button class="rt-x" id="rtClose" type="button" aria-label="닫기">×</button>
-    </div>
-    <div class="rt-bar"><i style="transform:scaleX(${phaseLen ? Math.max(0, rt.left) / phaseLen : 0})"></i></div>
-    <div class="rt-body">
-      <div class="rt-phase">${phaseText}</div>
-      <div class="rt-clock">${fmtClock(rt.left)}</div>
-      <div class="rt-next">${escapeHtml(nextText)}</div>
-      <div class="rt-sets"><span class="big">${done} / ${rt.sets}</span><span class="lbl">오늘 한 세트</span></div>
-      <div class="rt-dots">${Array.from({ length: rt.sets },
-        (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</div>
-    </div>
-    <div class="rt-foot"><button class="${actCls}" id="rtAct" type="button">${actText}</button></div>`;
+  el.querySelector('#rtBar').style.transform =
+    `scaleX(${phaseLen ? Math.max(0, rt.left) / phaseLen : 0})`;
+  el.querySelector('#rtClock').textContent = fmtClock(rt.left);
+  el.querySelector('#rtPhase').textContent = phaseText;
+  el.querySelector('#rtNext').textContent = nextText;
+  el.querySelector('#rtSets').textContent = `${done} / ${rt.sets}`;
 
-  document.getElementById('rtClose').addEventListener('click', closeRunTimer);
-  document.getElementById('rtAct').addEventListener('click', rtAction);
+  const act = el.querySelector('#rtAct');
+  if (act.textContent !== actText) act.textContent = actText;
+  if (act.className !== actCls) act.className = actCls;
+
+  // 칸은 세트가 올라갈 때만 다시 그린다
+  if (rt.dotsDrawn !== done) {
+    el.querySelector('#rtDots').innerHTML =
+      Array.from({ length: rt.sets }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('');
+    rt.dotsDrawn = done;
+  }
 }
 
 function rtLoop() {
@@ -1550,6 +1577,7 @@ function openRunTimer(level, sets) {
   rt.left = rt.runSec;
   const el = document.getElementById('runtimer');
   el.hidden = false;
+  rtBuild();
   rtPaint();
 }
 
