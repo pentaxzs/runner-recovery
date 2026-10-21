@@ -295,8 +295,10 @@ export function chartPoints(sessions, width, height) {
   const rawMax = Math.max(...values);
   const rawMin = Math.min(...values);
   // 값이 전부 같으면 span이 0이 되어 y가 NaN이 된다. 위아래로 1km씩 벌린다.
-  const maxKm = rawMax === rawMin ? rawMax + 1 : rawMax;
-  const minKm = rawMax === rawMin ? Math.max(0, rawMin - 1) : rawMin;
+  // 벌린 값은 축 라벨로 화면에 그대로 찍히므로 반올림한다 — 1.3 - 1은
+  // 부동소수점에서 0.30000000000000004다.
+  const maxKm = rawMax === rawMin ? round1(rawMax + 1) : rawMax;
+  const minKm = rawMax === rawMin ? round1(Math.max(0, rawMin - 1)) : rawMin;
   const span = maxKm - minKm;
 
   const points = runs.map((s, i) => {
