@@ -15,7 +15,7 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
-  cheerStage, pickCheer, cheersAt, advanceTimer,
+  cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS,
   escapeHtml,
 } from './logic.js';
 
@@ -773,7 +773,6 @@ function renderBodyCard() {
       <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
       <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
       ${fat.count >= 2 ? sparkline(fat.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
-      <button class="btn btn-sm" id="bodyBtn" type="button" style="width:100%;margin-top:10px">인바디 결과 입력</button>
     </div>`;
 }
 
@@ -823,6 +822,7 @@ function openBodyModal() {
       put('muscle', getMuscle, vals.muscle);
       put('fatmass', getFatMass, vals.fat);
       closeModal();
+      renderToday();
       renderLog();
       if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
     });
@@ -851,22 +851,20 @@ function renderLog() {
     <div class="card">
       <h3>걸음 수</h3>
       ${renderStepBars(steps) || `<div class="empty">아직 기록이 없습니다.<br>
-        단축어로 복사해두고 붙여넣거나, 직접 입력하세요.</div>`}
-      <button class="btn btn-sm" id="logStepsBtn" type="button" style="width:100%;margin-top:10px">
-        오늘 걸음 수 입력
-      </button>
+        오늘 탭에서 입력하세요.</div>`}
     </div>
     <div class="card">
-      <h3>세션 기록</h3>
+      <div class="todo-head">
+        <h3>세션 기록</h3>
+        <button class="btn btn-sm" id="backfillBtn" type="button">지난 날짜 추가</button>
+      </div>
       <div id="logList" style="margin-top:4px"></div>
     </div>
   `;
 
-  const stepsBtn2 = root.querySelector('#logStepsBtn');
-  if (stepsBtn2) stepsBtn2.addEventListener('click', openStepsModal);
+  const bfBtn = root.querySelector('#backfillBtn');
+  if (bfBtn) bfBtn.addEventListener('click', openBackfill);
 
-  const bodyBtn = root.querySelector('#bodyBtn');
-  if (bodyBtn) bodyBtn.addEventListener('click', openBodyModal);
 
   // 메모는 사용자 입력이므로 textContent로 넣는다.
   const list = root.querySelector('#logList');
@@ -909,6 +907,20 @@ function renderLog() {
 
     item.appendChild(head);
 
+    // 고치기 버튼은 head 맨 끝. 러닝은 통증 배지가 margin-left:auto로 밀려
+    // 있으므로 그 뒤에 붙는다.
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'log-edit';
+    edit.textContent = '고치기';
+    edit.setAttribute('aria-label', `${fmtDate(s.date)} ${sessionLabel(s)} 고치기`);
+    if (s.type !== 'run') edit.style.marginLeft = 'auto';
+    const at = sessions.indexOf(s);
+    edit.addEventListener('click', () => openSessionEditor(at));
+    head.appendChild(edit);
+
+    item.appendChild(head);
+
     if (s.memo) {
       const memo = document.createElement('div');
       memo.className = 'memo';
@@ -917,6 +929,292 @@ function renderLog() {
     }
     list.appendChild(item);
   }
+}
+
+// ── 지난 날짜 채우기 ────────────────────────────────────────
+// 입력은 오늘 탭 한 곳에서 받는 게 원칙이지만, 그날 못 적고 넘어간 날이
+// 생긴다. 날짜를 고르면 그날의 오늘 탭을 축소해 놓은 폼이 뜬다.
+//
+// 필수 운동 체크도 소급해서 채울 수 있다. 연속 기록이 거기서 나오므로
+// 지난주를 메우면 streak과 최장 기록이 다시 계산된다.
+function openBackfill() {
+  const today = todayStr();
+  const yday = toDateStr(addDays(parseLocalDate(today), -1));
+  const essentials = TASKS.filter((t) => t.tier === 'essential');
+
+  const form = (date) => {
+    const checks = getChecks()[date] || [];
+    const meals = mealChecksFor(date, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND);
+    const st = getSteps()[date];
+    const w = getWeights()[date];
+    const mu = getMuscle()[date];
+    const fm = getFatMass()[date];
+    const acts = getSessions().filter((s) => s.date === date && s.type === 'activity').map((a) => a.kind);
+
+    return `
+      <div class="section-title" style="margin-top:4px">필수 운동</div>
+      ${essentials.map((t) => `
+        <label class="check-row">
+          <input type="checkbox" data-bf-check="${t.id}" ${checks.includes(t.id) ? 'checked' : ''}>
+          <span class="t">${escapeHtml(t.title)}</span>
+        </label>`).join('')}
+
+      <div class="section-title">식사</div>
+      ${meals.map((m) => `
+        <label class="check-row">
+          <input type="checkbox" data-bf-check="${m.id}" ${checks.includes(m.id) ? 'checked' : ''}>
+          <span class="t">${escapeHtml(m.text)}</span>
+        </label>`).join('')}
+
+      <div class="section-title">걸음 수</div>
+      <label class="field">
+        <span>그날 걸은 수</span>
+        <input type="text" inputmode="numeric" id="bfSteps" placeholder="예: 8,234"
+               value="${Number.isFinite(st) ? st : ''}">
+      </label>
+
+      <div class="section-title">체성분 <span class="muted" style="font-weight:600">· 쟀다면</span></div>
+      <label class="field"><span>체중 (kg)</span>
+        <input type="text" inputmode="decimal" id="bfW" placeholder="예: 73.1" value="${Number.isFinite(w) ? w : ''}"></label>
+      <label class="field"><span>골격근량 (kg)</span>
+        <input type="text" inputmode="decimal" id="bfMuscle" placeholder="예: 32.4" value="${Number.isFinite(mu) ? mu : ''}"></label>
+      <label class="field"><span>체지방량 (kg)</span>
+        <input type="text" inputmode="decimal" id="bfFat" placeholder="예: 18.6" value="${Number.isFinite(fm) ? fm : ''}"></label>
+
+      <div class="section-title">다른 활동</div>
+      <div class="act-grid">
+        ${ACTIVITIES.map((a) => `
+          <button class="act-btn${acts.includes(a.id) ? ' on' : ''}" type="button" data-bf-act="${a.id}">
+            <span class="al">${escapeHtml(a.label)}</span>
+          </button>`).join('')}
+      </div>
+
+      <div class="block plain" style="margin-top:14px">
+        <div class="muted">러닝은 거리와 통증까지 받아야 해서 따로 있습니다.
+          저장한 뒤 목록에서 고치거나, 아래 버튼으로 추가하세요.</div>
+      </div>
+      <button class="btn btn-sm" id="bfRun" type="button" style="width:100%;margin-top:8px">이 날짜로 러닝 추가</button>
+    `;
+  };
+
+  openModal(`
+    <label class="field">
+      <span>날짜</span>
+      <input type="date" id="bfDate" max="${today}" value="${yday}">
+    </label>
+    <div id="bfForm">${form(yday)}</div>
+    <div id="bfMsg"></div>
+  `, (modal) => {
+    const dateEl = modal.querySelector('#bfDate');
+    let acts = new Set(getSessions()
+      .filter((s) => s.date === yday && s.type === 'activity').map((a) => a.kind));
+
+    const wireActs = () => {
+      modal.querySelectorAll('[data-bf-act]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const k = b.dataset.bfAct;
+          if (acts.has(k)) acts.delete(k); else acts.add(k);
+          b.classList.toggle('on', acts.has(k));
+        });
+      });
+      const runBtn = modal.querySelector('#bfRun');
+      if (runBtn) runBtn.addEventListener('click', () => {
+        const d = dateEl.value;
+        if (!d || d > today) { alert('날짜를 확인해주세요.'); return; }
+        closeModal();
+        openRunModal(d);
+      });
+    };
+
+    dateEl.addEventListener('change', () => {
+      const d = dateEl.value;
+      if (!d || d > today) { alert('오늘 이후는 기록할 수 없습니다.'); dateEl.value = today; return; }
+      modal.querySelector('#bfForm').innerHTML = form(d);
+      acts = new Set(getSessions().filter((s) => s.date === d && s.type === 'activity').map((a) => a.kind));
+      wireActs();
+    });
+    wireActs();
+
+    modal.querySelector('#bfCancel').addEventListener('click', closeModal);
+    modal.querySelector('#bfSave').addEventListener('click', () => {
+      const date = dateEl.value;
+      if (!date || date > today) { alert('날짜를 확인해주세요.'); return; }
+
+      const num = (id, lo, hi) => {
+        const v = modal.querySelector(id).value.trim();
+        if (v === '') return undefined;
+        const n = Number(v.replace(/[,\s]/g, ''));
+        return Number.isFinite(n) && n >= lo && n <= hi ? Math.round(n * 10) / 10 : null;
+      };
+      const vals = {
+        steps: num('#bfSteps', 0, MAX_STEPS),
+        w: num('#bfW', 20, 250),
+        muscle: num('#bfMuscle', 5, 100),
+        fat: num('#bfFat', 1, 150),
+      };
+      if (Object.values(vals).some((v) => v === null)) {
+        modal.querySelector('#bfMsg').innerHTML =
+          '<div class="block warn" style="margin-top:10px"><div class="muted">숫자 범위를 확인해주세요.</div></div>';
+        return;
+      }
+
+      const checks = getChecks();
+      checks[date] = [...modal.querySelectorAll('[data-bf-check]')]
+        .filter((el) => el.checked).map((el) => el.dataset.bfCheck);
+      if (checks[date].length === 0) delete checks[date];
+      store.set('checks', checks);
+
+      const put = (key, getter, v, round) => {
+        if (v === undefined) return;
+        const map = getter();
+        map[date] = round ? Math.round(v) : v;
+        store.set(key, map);
+      };
+      put('steps', getSteps, vals.steps, true);
+      put('weights', getWeights, vals.w);
+      put('muscle', getMuscle, vals.muscle);
+      put('fatmass', getFatMass, vals.fat);
+
+      // 활동은 그날 것만 지우고 새로 쓴다. 러닝은 건드리지 않는다.
+      const kept = getSessions().filter((s) => !(s.date === date && s.type === 'activity'));
+      for (const kind of acts) kept.push({ date, type: 'activity', kind });
+      store.set('sessions', kept);
+
+      closeModal();
+      afterSessionChange();
+    });
+  }, {
+    fullscreen: true,
+    title: '지난 날짜 채우기',
+    footer: `
+      <button class="btn btn-ghost" id="bfCancel" type="button">취소</button>
+      <button class="btn btn-primary" id="bfSave" type="button">저장</button>`,
+  });
+}
+
+// ── 세션 고치기 / 지우기 ────────────────────────────────────
+// 날짜까지 고칠 수 있다. 어제 뛴 걸 오늘로 잘못 저장한 경우가 제일 흔하다.
+//
+// 레벨은 손대지 않는다. 레벨은 러닝을 저장하는 순간 한 단계씩 적용돼 설정에
+// 남는 값이라, 오타 하나 고쳤다고 되돌리면 더 당황스럽다. 어긋나면 설정에서
+// 직접 맞춘다.
+function openSessionEditor(index) {
+  const list = getSessions();
+  const s = list[index];
+  if (!s) return;
+  const isRun = s.type === 'run';
+
+  openModal(`
+    <h2>${isRun ? '러닝' : '활동'} 기록 고치기</h2>
+    <label class="field">
+      <span>날짜</span>
+      <input type="date" id="seDate" max="${todayStr()}" value="${escapeHtml(s.date)}">
+    </label>
+    ${isRun ? `
+      <label class="field">
+        <span>뛴 거리 (km)</span>
+        <input type="number" id="seDist" step="0.1" min="0" max="100" value="${s.distanceKm ?? 0}">
+      </label>
+      <label class="inline-check" style="margin-bottom:12px">
+        <input type="checkbox" id="sePain" ${s.hadPain ? 'checked' : ''}> 통증이 있었나요?
+      </label>
+      <div id="sePainFields" class="${s.hadPain ? '' : 'hidden'}">
+        <label class="field">
+          <span>통증이 시작된 거리 (km)</span>
+          <input type="number" id="seOnset" step="0.1" min="0" max="100"
+                 value="${Number.isFinite(s.painOnsetKm) ? s.painOnsetKm : ''}">
+        </label>
+        <label class="field">
+          <span>통증 점수 <b id="seScoreVal">${s.painScore ?? 0}</b>/10</span>
+          <input type="range" id="seScore" min="0" max="10" value="${s.painScore ?? 0}">
+        </label>
+      </div>
+      <label class="field">
+        <span>메모</span>
+        <textarea id="seMemo" placeholder="노면, 날씨, 컨디션 등">${escapeHtml(s.memo || '')}</textarea>
+      </label>` : `
+      <label class="field">
+        <span>종류</span>
+        <select id="seKind">
+          ${ACTIVITIES.map((a) => `
+            <option value="${a.id}" ${a.id === s.kind ? 'selected' : ''}>${escapeHtml(a.label)}</option>`).join('')}
+        </select>
+      </label>`}
+    <div class="block plain">
+      <div class="muted">레벨은 바뀌지 않습니다. 어긋났다면 설정에서 맞추세요.</div>
+    </div>
+    <button class="btn btn-danger" id="seDelete" type="button" style="margin-top:12px">이 기록 지우기</button>
+  `, (modal) => {
+    if (isRun) {
+      const painEl = modal.querySelector('#sePain');
+      const fields = modal.querySelector('#sePainFields');
+      const scoreEl = modal.querySelector('#seScore');
+      painEl.addEventListener('change', () => fields.classList.toggle('hidden', !painEl.checked));
+      scoreEl.addEventListener('input', () => {
+        modal.querySelector('#seScoreVal').textContent = scoreEl.value;
+      });
+    }
+
+    modal.querySelector('#seDelete').addEventListener('click', () => {
+      if (!confirm('이 기록을 지웁니다. 되돌릴 수 없습니다.')) return;
+      const fresh = getSessions();
+      fresh.splice(index, 1);
+      store.set('sessions', fresh);
+      closeModal();
+      afterSessionChange();
+    });
+
+    modal.querySelector('#seCancel').addEventListener('click', closeModal);
+    modal.querySelector('#seSave').addEventListener('click', () => {
+      const date = modal.querySelector('#seDate').value;
+      if (!date || date > todayStr()) {
+        alert('날짜를 확인해주세요. 오늘 이후는 기록할 수 없습니다.');
+        return;
+      }
+      const fresh = getSessions();
+      const target = fresh[index];
+      if (!target) { closeModal(); return; }
+      target.date = date;
+
+      if (isRun) {
+        const distRaw = Number(modal.querySelector('#seDist').value);
+        if (!Number.isFinite(distRaw) || distRaw <= 0) {
+          alert('뛴 거리를 입력해주세요.');
+          return;
+        }
+        const distanceKm = Math.min(distRaw, 100);
+        const hadPain = modal.querySelector('#sePain').checked;
+        const onsetEl = modal.querySelector('#seOnset');
+        const onsetRaw = onsetEl.value === '' ? NaN : Number(onsetEl.value);
+        if (hadPain && !Number.isFinite(onsetRaw)) {
+          alert('통증이 시작된 거리를 입력해주세요. 처음부터 아팠다면 0을 넣으세요.');
+          return;
+        }
+        target.distanceKm = distanceKm;
+        target.hadPain = hadPain;
+        target.painOnsetKm = hadPain ? Math.min(Math.max(onsetRaw, 0), distanceKm) : undefined;
+        target.painScore = hadPain ? Number(modal.querySelector('#seScore').value) : 0;
+        target.memo = modal.querySelector('#seMemo').value || '';
+      } else {
+        target.kind = modal.querySelector('#seKind').value;
+      }
+
+      store.set('sessions', fresh);
+      closeModal();
+      afterSessionChange();
+    });
+  }, {
+    footer: `
+      <button class="btn btn-ghost" id="seCancel" type="button">취소</button>
+      <button class="btn btn-primary" id="seSave" type="button">저장</button>`,
+  });
+}
+
+// 기록이 바뀌면 차트·추이·오늘 화면이 전부 달라진다.
+function afterSessionChange() {
+  renderLog();
+  renderToday();
+  if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
 }
 
 // 운동 체크 한 줄. 필수와 접힌 섹션이 같은 마크업을 쓰도록 여기로 모았다.
@@ -1185,6 +1483,30 @@ export function renderToday() {
     </div>
   `);
 
+  // 8. 체성분 — 매일 하는 게 아니라 맨 아래, 낮은 톤으로. 안 잰 날에 밀린
+  // 숙제처럼 보이면 매일 보는 화면에 매일 빚이 생긴다.
+  const bw = getWeights()[today];
+  const bm = getMuscle()[today];
+  const bf = getFatMass()[today];
+  const bodyLogged = [bw, bm, bf].some((v) => Number.isFinite(v));
+  parts.push(`
+    <div class="card">
+      <h3>체성분 <span class="muted" style="font-weight:600">· 쟀을 때만</span></h3>
+      ${bodyLogged ? `
+        <div style="margin-top:6px">
+          ${Number.isFinite(bf) ? `<div class="kv"><span class="k">체지방량</span><span class="v">${bf}kg</span></div>` : ''}
+          ${Number.isFinite(bm) ? `<div class="kv"><span class="k">골격근량</span><span class="v">${bm}kg</span></div>` : ''}
+          ${Number.isFinite(bw) ? `<div class="kv"><span class="k">체중</span><span class="v">${bw}kg</span></div>` : ''}
+        </div>` : `
+        <p class="muted" style="margin:4px 0 0;font-size:12px">
+          오늘 인바디를 쟀다면 적어두세요. 주 1회면 충분합니다.
+        </p>`}
+      <button class="btn btn-sm" id="bodyBtnToday" type="button" style="width:100%;margin-top:10px">
+        ${bodyLogged ? '오늘 측정값 고치기' : '인바디 결과 입력'}
+      </button>
+    </div>
+  `);
+
   // 체크 한 번에 섹션이 닫히면 토요일 필수 2개를 연달아 체크할 수 없다.
   const openState = [...root.querySelectorAll('details')].map((d) => d.open);
   const scrollY = window.scrollY;
@@ -1223,6 +1545,9 @@ export function renderToday() {
 
   const stepsBtn = root.querySelector('#stepsBtn');
   if (stepsBtn) stepsBtn.addEventListener('click', openStepsModal);
+
+  const bodyBtnToday = root.querySelector('#bodyBtnToday');
+  if (bodyBtnToday) bodyBtnToday.addEventListener('click', openBodyModal);
 
   const errBtn = root.querySelector('#dismissStepsErr');
   if (errBtn) errBtn.addEventListener('click', () => { stepsError = null; renderToday(); });
@@ -1324,13 +1649,16 @@ function openStepsModal() {
 }
 
 // ── 러닝 기록 모달 ──────────────────────────────────────────
-function openRunModal() {
+// dateStr을 주면 그 날짜로 기록한다. 빠뜨린 날을 기록 탭에서 채울 때 쓴다.
+function openRunModal(dateStr) {
   const today = todayStr();
+  const date = dateStr || today;
+  const past = date !== today;
   const settings = getSettings();
   const level = ladderAt(settings.runLevel);
 
   openModal(`
-    <h2>오늘 러닝 기록</h2>
+    <h2>${past ? `${escapeHtml(fmtDate(date))} 러닝 기록` : '오늘 러닝 기록'}</h2>
     <p class="muted" style="margin:0 0 14px">${escapeHtml(level.label)} · 목표 약 ${level.approxKm}km</p>
     <label class="field">
       <span>뛴 거리 (km)</span>
@@ -1383,7 +1711,7 @@ function openRunModal() {
         return;
       }
       const session = {
-        date: today,
+        date,
         type: 'run',
         level: settings.runLevel,
         distanceKm,
@@ -1396,6 +1724,9 @@ function openRunModal() {
 
       const list = getSessions();
       list.push(session);
+      // 지난 날짜를 채우면 배열 끝이 더 이상 최신이 아니다. nextLevel은 순서를
+      // 보고 판단하므로(최근 3회, 이 레벨에서 깨끗한 횟수) 날짜순으로 맞춘다.
+      list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       store.set('sessions', list);
 
       const decided = nextLevel(settings.runLevel, list.filter((s) => s.type === 'run'), RUN_LADDER.length);
@@ -1407,7 +1738,7 @@ function openRunModal() {
       });
 
       closeModal();
-      renderToday();
+      afterSessionChange();
       showLevelToast(decided);
     });
   });

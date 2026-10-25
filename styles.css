@@ -682,6 +682,14 @@ main { touch-action: pan-y; }
   gap: 2px;
 }
 .act-btn .ld { font-size: 10px; font-weight: 800; color: var(--warn); }
+/* 지난 날짜 채우기에서 고른 활동. 오늘 탭은 위쪽 칩으로 보여주지만 그 폼에는
+   칩 자리가 없어서 버튼 자체가 상태를 들고 있어야 한다. */
+.act-btn.on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.act-btn.on .ld { color: #fff; }
 
 /* ── 각진 체크박스 ──────────────────────────────────── */
 /* 브라우저 기본 체크박스는 모서리가 둥글어 appearance를 끄고 직접 그린다. */
@@ -1113,3 +1121,18 @@ body.modal-open { overflow: hidden; }
   color: #0f172a;
 }
 .rt-act.stop { background: rgba(255, 255, 255, .14); color: #fff; border: 1px solid rgba(255, 255, 255, .4); }
+
+/* 세션 기록 한 줄의 고치기 버튼. 줄을 통째로 누르게 하면 목록을 훑다가
+   잘못 열리므로 작은 표적을 따로 둔다. */
+.log-edit {
+  margin-left: 8px;
+  padding: 4px 9px;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
