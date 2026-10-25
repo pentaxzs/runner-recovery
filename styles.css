@@ -306,7 +306,7 @@ label.field > span {
   font-weight: 700;
   margin-bottom: 6px;
 }
-input[type="number"], input[type="text"], textarea, select {
+input[type="number"], input[type="text"], input[type="date"], textarea, select {
   width: 100%;
   min-height: 48px;
   padding: 12px 14px;
@@ -1136,3 +1136,45 @@ body.modal-open { overflow: hidden; }
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ── 날짜 고르기 ────────────────────────────────────── */
+/* 지난 날짜를 채울 때 제일 먼저 하는 일이라 화면 맨 위에서 가장 크다.
+   대부분 어제나 그제라서 버튼으로 바로 집고, 더 거슬러 가면 달력을 연다. */
+.datepick {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.datepick .dp-k {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+.datepick .dp-now {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+  margin-top: 2px;
+}
+.dp-chips { display: flex; gap: 6px; margin: 12px 0 10px; }
+.dp-chips button {
+  flex: 1;
+  min-height: 46px;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dp-chips button.on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.datepick input[type="date"] { min-height: 52px; background: var(--surface); }
+.datepick .dp-hint { font-size: 12px; color: var(--muted); margin-top: 7px; }

@@ -997,11 +997,27 @@ function openBackfill() {
     `;
   };
 
+  const QUICK = [
+    { days: 1, label: '어제' },
+    { days: 2, label: '그제' },
+    { days: 3, label: '3일 전' },
+  ];
+  const dayOffset = (d) =>
+    Math.round((parseLocalDate(today) - parseLocalDate(d)) / 86400000);
+
   openModal(`
-    <label class="field">
-      <span>날짜</span>
-      <input type="date" id="bfDate" max="${today}" value="${yday}">
-    </label>
+    <div class="datepick">
+      <div class="dp-k">채울 날짜</div>
+      <div class="dp-now" id="bfDateLabel">${escapeHtml(fmtDate(yday))}</div>
+      <div class="dp-chips">
+        ${QUICK.map((q) => `
+          <button type="button" data-bf-day="${q.days}"${q.days === 1 ? ' class="on"' : ''}>
+            ${q.label}
+          </button>`).join('')}
+      </div>
+      <input type="date" id="bfDate" max="${today}" value="${yday}" aria-label="채울 날짜">
+      <div class="dp-hint">더 거슬러 가려면 위 칸을 눌러 달력에서 고르세요.</div>
+    </div>
     <div id="bfForm">${form(yday)}</div>
     <div id="bfMsg"></div>
   `, (modal) => {
@@ -1026,12 +1042,25 @@ function openBackfill() {
       });
     };
 
-    dateEl.addEventListener('change', () => {
-      const d = dateEl.value;
-      if (!d || d > today) { alert('오늘 이후는 기록할 수 없습니다.'); dateEl.value = today; return; }
+    // 고른 날짜를 한 군데서만 바꾼다. 라벨·칩·폼이 같이 따라가야 지금 어느
+    // 날짜를 채우는 중인지 헷갈리지 않는다.
+    const setDate = (d) => {
+      if (!d || d > today) { alert('오늘 이후는 기록할 수 없습니다.'); return; }
+      dateEl.value = d;
+      modal.querySelector('#bfDateLabel').textContent = fmtDate(d);
+      const off = dayOffset(d);
+      modal.querySelectorAll('[data-bf-day]').forEach((b) => {
+        b.classList.toggle('on', Number(b.dataset.bfDay) === off);
+      });
       modal.querySelector('#bfForm').innerHTML = form(d);
       acts = new Set(getSessions().filter((s) => s.date === d && s.type === 'activity').map((a) => a.kind));
       wireActs();
+    };
+
+    dateEl.addEventListener('change', () => setDate(dateEl.value));
+    modal.querySelectorAll('[data-bf-day]').forEach((b) => {
+      b.addEventListener('click', () =>
+        setDate(toDateStr(addDays(parseLocalDate(today), -Number(b.dataset.bfDay)))));
     });
     wireActs();
 
