@@ -950,6 +950,7 @@ function openBackfill() {
     const mu = getMuscle()[date];
     const fm = getFatMass()[date];
     const acts = getSessions().filter((s) => s.date === date && s.type === 'activity').map((a) => a.kind);
+    const run = getSessions().find((s) => s.date === date && s.type === 'run');
 
     return `
       <div class="section-title" style="margin-top:4px">필수 운동</div>
@@ -989,11 +990,23 @@ function openBackfill() {
           </button>`).join('')}
       </div>
 
-      <div class="block plain" style="margin-top:14px">
-        <div class="muted">러닝은 거리와 통증까지 받아야 해서 따로 있습니다.
-          저장한 뒤 목록에서 고치거나, 아래 버튼으로 추가하세요.</div>
+      <div class="section-title">러닝 <span class="muted" style="font-weight:600">· 뛰었다면</span></div>
+      ${run ? '' : `<p class="muted" style="margin:-2px 0 8px;font-size:12px">거리를 비워두면 러닝은 기록하지 않습니다.</p>`}
+      <label class="field"><span>뛴 거리 (km)</span>
+        <input type="number" id="bfDist" step="0.1" min="0" max="100"
+               value="${run ? run.distanceKm ?? '' : ''}" placeholder="예: 1.8"></label>
+      <label class="inline-check" style="margin-bottom:12px">
+        <input type="checkbox" id="bfPain" ${run && run.hadPain ? 'checked' : ''}> 통증이 있었나요?
+      </label>
+      <div id="bfPainFields" class="${run && run.hadPain ? '' : 'hidden'}">
+        <label class="field"><span>통증이 시작된 거리 (km)</span>
+          <input type="number" id="bfOnset" step="0.1" min="0" max="100"
+                 value="${run && Number.isFinite(run.painOnsetKm) ? run.painOnsetKm : ''}"></label>
+        <label class="field"><span>통증 점수 <b id="bfScoreVal">${run ? run.painScore ?? 0 : 3}</b>/10</span>
+          <input type="range" id="bfScore" min="0" max="10" value="${run ? run.painScore ?? 0 : 3}"></label>
       </div>
-      <button class="btn btn-sm" id="bfRun" type="button" style="width:100%;margin-top:8px">이 날짜로 러닝 추가</button>
+      <label class="field"><span>메모</span>
+        <textarea id="bfMemo" placeholder="노면, 날씨, 컨디션 등">${escapeHtml(run ? run.memo || '' : '')}</textarea></label>
     `;
   };
 
@@ -1025,7 +1038,7 @@ function openBackfill() {
     let acts = new Set(getSessions()
       .filter((s) => s.date === yday && s.type === 'activity').map((a) => a.kind));
 
-    const wireActs = () => {
+    const wireForm = () => {
       modal.querySelectorAll('[data-bf-act]').forEach((b) => {
         b.addEventListener('click', () => {
           const k = b.dataset.bfAct;
@@ -1033,12 +1046,12 @@ function openBackfill() {
           b.classList.toggle('on', acts.has(k));
         });
       });
-      const runBtn = modal.querySelector('#bfRun');
-      if (runBtn) runBtn.addEventListener('click', () => {
-        const d = dateEl.value;
-        if (!d || d > today) { alert('날짜를 확인해주세요.'); return; }
-        closeModal();
-        openRunModal(d);
+      const painEl = modal.querySelector('#bfPain');
+      const fields = modal.querySelector('#bfPainFields');
+      const scoreEl = modal.querySelector('#bfScore');
+      painEl.addEventListener('change', () => fields.classList.toggle('hidden', !painEl.checked));
+      scoreEl.addEventListener('input', () => {
+        modal.querySelector('#bfScoreVal').textContent = scoreEl.value;
       });
     };
 
@@ -1054,7 +1067,7 @@ function openBackfill() {
       });
       modal.querySelector('#bfForm').innerHTML = form(d);
       acts = new Set(getSessions().filter((s) => s.date === d && s.type === 'activity').map((a) => a.kind));
-      wireActs();
+      wireForm();
     };
 
     dateEl.addEventListener('change', () => setDate(dateEl.value));
@@ -1062,7 +1075,7 @@ function openBackfill() {
       b.addEventListener('click', () =>
         setDate(toDateStr(addDays(parseLocalDate(today), -Number(b.dataset.bfDay)))));
     });
-    wireActs();
+    wireForm();
 
     modal.querySelector('#bfCancel').addEventListener('click', closeModal);
     modal.querySelector('#bfSave').addEventListener('click', () => {
@@ -1104,9 +1117,44 @@ function openBackfill() {
       put('muscle', getMuscle, vals.muscle);
       put('fatmass', getFatMass, vals.fat);
 
-      // 활동은 그날 것만 지우고 새로 쓴다. 러닝은 건드리지 않는다.
-      const kept = getSessions().filter((s) => !(s.date === date && s.type === 'activity'));
+      // 거리를 적었으면 그날 러닝을 쓴다. 비워뒀으면 기존 러닝은 그대로 둔다 —
+      // 지우려면 목록에서 지운다.
+      const distRaw = modal.querySelector('#bfDist').value;
+      let run = null;
+      if (distRaw !== '') {
+        const dist = Number(distRaw);
+        if (!Number.isFinite(dist) || dist <= 0) {
+          modal.querySelector('#bfMsg').innerHTML =
+            '<div class="block warn" style="margin-top:10px"><div class="muted">뛴 거리를 확인해주세요.</div></div>';
+          return;
+        }
+        const hadPain = modal.querySelector('#bfPain').checked;
+        const onsetEl = modal.querySelector('#bfOnset');
+        const onsetRaw = onsetEl.value === '' ? NaN : Number(onsetEl.value);
+        if (hadPain && !Number.isFinite(onsetRaw)) {
+          modal.querySelector('#bfMsg').innerHTML =
+            '<div class="block warn" style="margin-top:10px"><div class="muted">통증이 시작된 거리를 적어주세요. 처음부터 아팠다면 0입니다.</div></div>';
+          return;
+        }
+        const distanceKm = Math.min(dist, 100);
+        run = {
+          date,
+          type: 'run',
+          level: getSettings().runLevel,
+          distanceKm,
+          hadPain,
+          painOnsetKm: hadPain ? Math.min(Math.max(onsetRaw, 0), distanceKm) : undefined,
+          painScore: hadPain ? Number(modal.querySelector('#bfScore').value) : 0,
+          memo: modal.querySelector('#bfMemo').value || '',
+        };
+      }
+
+      // 활동과 러닝은 그날 것만 지우고 새로 쓴다.
+      const kept = getSessions().filter((s) =>
+        !(s.date === date && (s.type === 'activity' || (run && s.type === 'run'))));
       for (const kind of acts) kept.push({ date, type: 'activity', kind });
+      if (run) kept.push(run);
+      kept.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
       store.set('sessions', kept);
 
       closeModal();
@@ -1134,7 +1182,6 @@ function openSessionEditor(index) {
   const isRun = s.type === 'run';
 
   openModal(`
-    <h2>${isRun ? '러닝' : '활동'} 기록 고치기</h2>
     <label class="field">
       <span>날짜</span>
       <input type="date" id="seDate" max="${todayStr()}" value="${escapeHtml(s.date)}">
@@ -1233,6 +1280,8 @@ function openSessionEditor(index) {
       afterSessionChange();
     });
   }, {
+    fullscreen: true,
+    title: `${isRun ? '러닝' : '활동'} 기록 고치기`,
     footer: `
       <button class="btn btn-ghost" id="seCancel" type="button">취소</button>
       <button class="btn btn-primary" id="seSave" type="button">저장</button>`,
@@ -2052,7 +2101,16 @@ function openModal(html, wire, opts = {}) {
   root.innerHTML = `
     <div class="modal-backdrop${full ? ' full' : ''}">
       <div class="modal${full ? ' full' : ''}" role="dialog" aria-modal="true">
-        ${full && opts.title ? `<div class="modal-head"><h2>${escapeHtml(opts.title)}</h2></div>` : ''}
+        ${full && opts.title ? `
+          <div class="modal-head">
+            <button class="modal-back" id="modalBack" type="button" aria-label="이전으로">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.2" stroke-linecap="square" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7"/>
+              </svg>
+            </button>
+            <h2>${escapeHtml(opts.title)}</h2>
+          </div>` : ''}
         <div class="modal-body">${html}</div>
         ${opts.footer ? `<div class="modal-foot">${opts.footer}</div>` : ''}
       </div>
@@ -2065,6 +2123,8 @@ function openModal(html, wire, opts = {}) {
     const backdrop = root.querySelector('.modal-backdrop');
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
   }
+  const back = root.querySelector('#modalBack');
+  if (back) back.addEventListener('click', () => (opts.onBack ? opts.onBack() : closeModal()));
   if (wire) wire(root.querySelector('.modal'));
 }
 

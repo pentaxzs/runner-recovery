@@ -810,11 +810,28 @@ body.modal-open { overflow: hidden; }
 }
 .modal.full .modal-head {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: calc(env(safe-area-inset-top) + 16px) var(--gap) 12px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 .modal.full .modal-head h2 { margin: 0; font-size: 19px; font-weight: 800; }
+/* 전체화면은 페이지처럼 동작한다. 뒤로 가는 길이 화면 안에 보여야 한다. */
+.modal-back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
 .modal.full .modal-body {
   flex: 1;
   min-height: 0;
