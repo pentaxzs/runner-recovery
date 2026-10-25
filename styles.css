@@ -362,6 +362,7 @@ input[type="range"] { width: 100%; accent-color: var(--brand); }
   max-width: 480px;
   max-height: 88vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--bg);
   border-radius: 0;
   padding: var(--gap);
@@ -793,7 +794,16 @@ body { overscroll-behavior-y: contain; }
 .dose-tempo .dk { margin-right: 6px; }
 
 /* ── 전체화면 모달 ──────────────────────────────────── */
-body.modal-open { overflow: hidden; }
+/* iOS Safari는 body의 overflow:hidden만으로 스크롤이 잠기지 않는다. 자리를
+   고정하고 top으로 밀어둬야 뒤 문서가 멈춘다. 되돌릴 scrollY는 JS가 들고 있다. */
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 .modal-backdrop.full {
   background: var(--bg);
@@ -836,6 +846,8 @@ body.modal-open { overflow: hidden; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* 끝까지 스크롤해도 뒤 문서로 넘어가지 않는다 */
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: var(--gap);
   padding-bottom: 8px;

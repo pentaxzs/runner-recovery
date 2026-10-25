@@ -2116,8 +2116,7 @@ function openModal(html, wire, opts = {}) {
       </div>
     </div>`;
 
-  // 전체화면 뒤에서 페이지가 같이 스크롤되면 어디를 만지는지 알 수 없어진다.
-  document.body.classList.add('modal-open');
+  lockScroll();
 
   if (!full) {
     const backdrop = root.querySelector('.modal-backdrop');
@@ -2130,7 +2129,25 @@ function openModal(html, wire, opts = {}) {
 
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
+  unlockScroll();
+}
+
+// 뒤 페이지가 같이 스크롤되면 어디를 만지는지 알 수 없어진다. body를 fixed로
+// 세우고 top으로 밀어두는 게 iOS에서 실제로 멈추는 유일한 방법이다 —
+// overflow:hidden만으로는 문서가 계속 스크롤된다. 푼 뒤에 원래 자리로 돌려놓는다.
+let lockedScrollY = 0;
+function lockScroll() {
+  if (document.body.classList.contains('modal-open')) return; // 모달 위에 모달
+  lockedScrollY = window.scrollY;
+  document.body.style.top = `-${lockedScrollY}px`;
+  document.body.classList.add('modal-open');
+}
+
+function unlockScroll() {
+  if (!document.body.classList.contains('modal-open')) return;
   document.body.classList.remove('modal-open');
+  document.body.style.top = '';
+  window.scrollTo(0, lockedScrollY);
 }
 
 // ── 헤더 글리프 ─────────────────────────────────────────────
