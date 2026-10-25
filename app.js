@@ -907,13 +907,13 @@ function renderLog() {
 
     item.appendChild(head);
 
-    // 고치기 버튼은 head 맨 끝. 러닝은 통증 배지가 margin-left:auto로 밀려
+    // 수정 버튼은 head 맨 끝. 러닝은 통증 배지가 margin-left:auto로 밀려
     // 있으므로 그 뒤에 붙는다.
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'log-edit';
-    edit.textContent = '고치기';
-    edit.setAttribute('aria-label', `${fmtDate(s.date)} ${sessionLabel(s)} 고치기`);
+    edit.textContent = '수정';
+    edit.setAttribute('aria-label', `${fmtDate(s.date)} ${sessionLabel(s)} 수정`);
     if (s.type !== 'run') edit.style.marginLeft = 'auto';
     const at = sessions.indexOf(s);
     edit.addEventListener('click', () => openSessionEditor(at));
@@ -1169,7 +1169,7 @@ function openBackfill() {
   });
 }
 
-// ── 세션 고치기 / 지우기 ────────────────────────────────────
+// ── 세션 수정 / 삭제 ────────────────────────────────────────
 // 날짜까지 고칠 수 있다. 어제 뛴 걸 오늘로 잘못 저장한 경우가 제일 흔하다.
 //
 // 레벨은 손대지 않는다. 레벨은 러닝을 저장하는 순간 한 단계씩 적용돼 설정에
@@ -1281,7 +1281,7 @@ function openSessionEditor(index) {
     });
   }, {
     fullscreen: true,
-    title: `${isRun ? '러닝' : '활동'} 기록 고치기`,
+    title: `${isRun ? '러닝' : '활동'} 기록 수정`,
     footer: `
       <button class="btn btn-ghost" id="seCancel" type="button">취소</button>
       <button class="btn btn-primary" id="seSave" type="button">저장</button>`,
