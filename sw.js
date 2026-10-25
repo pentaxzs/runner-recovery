@@ -4,7 +4,7 @@
 // 나가서, 사용자는 한 번 더 열어야 바뀐 걸 본다. 그래서 자주 바뀌는 셸
 // (HTML/CSS/JS)만 network-first로 돌리고, 거의 안 바뀌는 아이콘·manifest는
 // cache-first로 남긴다. 네트워크가 느리면 타임아웃으로 캐시에 떨어진다.
-const VERSION = 'rr-v3-032';
+const VERSION = 'rr-v3-033';
 const NET_TIMEOUT_MS = 2500;
 
 const SHELL = [
