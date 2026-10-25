@@ -1631,7 +1631,8 @@ export function renderToday() {
   if (errBtn) errBtn.addEventListener('click', () => { stepsError = null; renderToday(); });
 
   const runBtn = root.querySelector('#logRunBtn');
-  if (runBtn) runBtn.addEventListener('click', openRunModal);
+  // 리스너로 바로 넘기면 Event가 첫 인자(dateStr)로 들어간다
+  if (runBtn) runBtn.addEventListener('click', () => openRunModal());
 
   const rtBtn = root.querySelector('#rtOpen');
   if (rtBtn) {
@@ -1728,9 +1729,11 @@ function openStepsModal() {
 
 // ── 러닝 기록 모달 ──────────────────────────────────────────
 // dateStr을 주면 그 날짜로 기록한다. 빠뜨린 날을 기록 탭에서 채울 때 쓴다.
+// 문자열만 받는다 — 리스너에 그대로 물리면 Event가 들어오는데, 그걸 날짜로
+// 믿으면 아무 말 없이 모달이 안 뜬다.
 function openRunModal(dateStr) {
   const today = todayStr();
-  const date = dateStr || today;
+  const date = typeof dateStr === 'string' && dateStr ? dateStr : today;
   const past = date !== today;
   const settings = getSettings();
   const level = ladderAt(settings.runLevel);
