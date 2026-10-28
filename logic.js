@@ -632,6 +632,27 @@ export function pickCheer(pool, rand, last) {
   return from[Math.min(Math.floor(rand() * from.length), from.length - 1)];
 }
 
+// 자투리 미션은 하루에 셋까지 할 수 있다. 며칠이 아니라 몇 개를 했는지가
+// 맞는 단위다.
+export function countChecks(checks, ids, dates) {
+  const want = new Set(ids || []);
+  if (want.size === 0) return 0;
+  return (dates || []).reduce((n, d) => {
+    const list = (checks || {})[d];
+    return n + (Array.isArray(list) ? list.filter((id) => want.has(id)).length : 0);
+  }, 0);
+}
+
+// 추가 운동은 그날 뭘 했든 '한 날'로 센다.
+export function countAnyCheckDays(checks, ids, dates) {
+  const want = new Set(ids || []);
+  if (want.size === 0) return 0;
+  return (dates || []).filter((d) => {
+    const list = (checks || {})[d];
+    return Array.isArray(list) && list.some((id) => want.has(id));
+  }).length;
+}
+
 export function countCheckDays(checks, id, dates) {
   return (dates || []).filter((d) => {
     const list = checks[d];

@@ -16,6 +16,7 @@ import {
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
   cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS,
+  countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
 
@@ -848,6 +849,7 @@ function renderLog() {
       ${renderChart(sessions)}
     </div>
     ${renderBodyCard()}
+    ${renderHabitCard()}
     <div class="card">
       <h3>걸음 수</h3>
       ${renderStepBars(steps) || `<div class="empty">아직 기록이 없습니다.<br>
@@ -931,6 +933,68 @@ function renderLog() {
   }
 }
 
+// ── 습관 ────────────────────────────────────────────────────
+// 식사와 자투리는 지금까지 쌓이기만 하고 읽히는 데가 없었다. 체크한 사람이
+// 한 달 뒤에 "내가 뭘 했지"를 볼 자리가 있어야 체크에 의미가 생긴다.
+//
+// 분모를 30일로 고정하지 않는다. 아침 단백질은 평일에만 나오고 저녁 과식은
+// 주말에만 나오므로, 그날 실제로 제시된 날만 센다.
+const MISSION_IDS = MICRO_MISSIONS.map((m) => m.id);
+const EXTRA_IDS = TASKS.filter((t) => t.tier !== 'essential').map((t) => t.id);
+
+function renderHabitCard() {
+  const today = todayStr();
+  const settings = getSettings();
+  const checks = getChecks();
+  const dates = lastNDays(today, 30)
+    .filter((d) => !settings.startedAt || d >= settings.startedAt);
+  if (dates.length === 0) return '';
+
+  // 식사 항목마다 그날 제시됐던 날짜만 모은다
+  const mealRows = [];
+  const seen = new Set();
+  for (const d of dates) {
+    for (const m of mealChecksFor(d, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND)) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      const offered = dates.filter((x) =>
+        mealChecksFor(x, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND).some((y) => y.id === m.id));
+      mealRows.push({ text: m.text, done: countCheckDays(checks, m.id, offered), of: offered.length });
+    }
+  }
+
+  const missionCount = countChecks(checks, MISSION_IDS, dates);
+  const missionDays = countAnyCheckDays(checks, MISSION_IDS, dates);
+  const extraDays = countAnyCheckDays(checks, EXTRA_IDS, dates);
+  const nothing = mealRows.every((r) => r.done === 0) && missionCount === 0 && extraDays === 0;
+
+  return `
+    <div class="card">
+      <h3>습관 <span class="muted" style="font-weight:600">· 최근 ${dates.length}일</span></h3>
+      ${nothing ? `
+        <div class="empty" style="padding:14px">아직 기록이 없습니다.<br>
+          오늘 탭에서 식사와 자투리를 체크하면 여기에 쌓입니다.</div>` : `
+        <div style="margin-top:8px">
+          ${mealRows.map((r) => `
+            <div class="kv">
+              <span class="k">${escapeHtml(r.text)}</span>
+              <span class="v">${r.done}<span class="muted" style="font-weight:600">/${r.of}일</span></span>
+            </div>`).join('')}
+          <div class="kv">
+            <span class="k">자투리 미션</span>
+            <span class="v">${missionCount}개<span class="muted" style="font-weight:600"> · ${missionDays}일</span></span>
+          </div>
+          <div class="kv">
+            <span class="k">추가 운동</span>
+            <span class="v">${extraDays}<span class="muted" style="font-weight:600">/${dates.length}일</span></span>
+          </div>
+        </div>
+        <p class="muted" style="margin:8px 0 0;font-size:11px">
+          식사는 그날 제시된 날만 셉니다 — 아침·점심은 평일, 저녁 과식은 주말입니다.
+        </p>`}
+    </div>`;
+}
+
 // ── 지난 날짜 채우기 ────────────────────────────────────────
 // 입력은 오늘 탭 한 곳에서 받는 게 원칙이지만, 그날 못 적고 넘어간 날이
 // 생긴다. 날짜를 고르면 그날의 오늘 탭을 축소해 놓은 폼이 뜬다.
@@ -951,6 +1015,10 @@ function openBackfill() {
     const fm = getFatMass()[date];
     const acts = getSessions().filter((s) => s.date === date && s.type === 'activity').map((a) => a.kind);
     const run = getSessions().find((s) => s.date === date && s.type === 'run');
+    // 자투리는 날짜 시드로 뽑히므로 그날 떴던 셋을 그대로 다시 만들 수 있다
+    const missions = pickMissions(MICRO_MISSIONS, date, 3);
+    const extras = TASKS.filter((t) => t.tier !== 'essential');
+    const extraDone = extras.filter((t) => checks.includes(t.id)).length;
 
     return `
       <div class="section-title" style="margin-top:4px">필수 운동</div>
@@ -966,6 +1034,28 @@ function openBackfill() {
           <input type="checkbox" data-bf-check="${m.id}" ${checks.includes(m.id) ? 'checked' : ''}>
           <span class="t">${escapeHtml(m.text)}</span>
         </label>`).join('')}
+
+      <div class="section-title">자투리 <span class="muted" style="font-weight:600">· 그날 떴던 셋</span></div>
+      ${missions.length ? missions.map((m) => `
+        <label class="check-row mission">
+          <input type="checkbox" data-bf-check="${m.id}" ${checks.includes(m.id) ? 'checked' : ''}>
+          <span class="ctx">${escapeHtml(CONTEXT_LABELS[m.context] || m.context)}</span>
+          <span class="txt t">${escapeHtml(m.text)}</span>
+        </label>`).join('') : '<p class="muted" style="margin:0;font-size:12px">그날은 자투리가 없었습니다.</p>'}
+
+      <details class="collapse" style="margin:14px 0 0">
+        <summary>추가 운동 ${extraDone ? `· ${extraDone}개 체크됨` : ''}</summary>
+        <div class="body">
+          ${extras.map((t) => `
+            <label class="check-row">
+              <input type="checkbox" data-bf-check="${t.id}" ${checks.includes(t.id) ? 'checked' : ''}>
+              <span>
+                <span class="t">${escapeHtml(t.title)}</span><br>
+                <span class="d">${escapeHtml(TIER_LABELS[t.tier] || '')} · ${escapeHtml(t.detail)}</span>
+              </span>
+            </label>`).join('')}
+        </div>
+      </details>
 
       <div class="section-title">걸음 수</div>
       <label class="field">
