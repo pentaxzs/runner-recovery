@@ -1100,10 +1100,16 @@ function openBackfill() {
         return;
       }
 
+      // 이 폼은 필수 운동과 식사만 다룬다. 그날 체크해둔 자투리 미션이나 추가
+      // 운동은 폼에 없으므로, 통째로 덮어쓰면 조용히 지워진다. 폼이 다루는
+      // 항목만 갈아끼우고 나머지는 그대로 둔다.
+      const boxes = [...modal.querySelectorAll('[data-bf-check]')];
+      const managed = new Set(boxes.map((el) => el.dataset.bfCheck));
       const checks = getChecks();
-      checks[date] = [...modal.querySelectorAll('[data-bf-check]')]
-        .filter((el) => el.checked).map((el) => el.dataset.bfCheck);
-      if (checks[date].length === 0) delete checks[date];
+      const untouched = (checks[date] || []).filter((id) => !managed.has(id));
+      const picked = boxes.filter((el) => el.checked).map((el) => el.dataset.bfCheck);
+      const merged = [...untouched, ...picked];
+      if (merged.length) checks[date] = merged; else delete checks[date];
       store.set('checks', checks);
 
       const put = (key, getter, v, round) => {
