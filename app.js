@@ -639,7 +639,11 @@ function renderWeeklyReport() {
   return `
     <div class="card">
       <h2>${win.isLastWeek ? '지난주' : '이번 주'} 리포트</h2>
-      <div class="kv"><span class="k">필수 달성</span><span class="v">${r.essentialDone} / ${r.essentialTarget}일</span></div>
+      <div class="kv">
+        <span class="k">필수 달성</span>
+        <span class="v">${r.essentialDone} / ${r.essentialTarget}일${
+          r.satDone ? '<span class="muted" style="font-weight:600"> · 토요일도</span>' : ''}</span>
+      </div>
       <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
       <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
       <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
@@ -1486,7 +1490,7 @@ export function renderToday() {
       <div class="card hero rest">
         <div class="label">오늘</div>
         <div class="title">쉬는 날입니다</div>
-        <div class="meta">회복도 프로그램의 일부입니다. 토요일은 연속 기록에서 건너뜁니다 — 쉬어도 안 끊깁니다.</div>
+        <div class="meta">러닝을 쉬는 날입니다. 안 해도 연속 기록이 끊기지 않고, 필수 2개를 하면 하루로 셉니다.</div>
       </div>`);
   }
 
@@ -1575,7 +1579,7 @@ export function renderToday() {
       ${todoHead}
       <p class="muted" style="margin:2px 0 0;font-size:12px">
         ${day === SATURDAY
-          ? '토요일은 연속 기록에서 건너뜁니다. 해도 되고 안 해도 끊기지 않습니다.'
+          ? '토요일은 안 해도 연속 기록이 끊기지 않습니다. 하면 하루로 셉니다.'
           : essDone === essTotal
             ? '필수 완료. 연속 기록이 올라갔습니다.'
             : '아래 운동 2개를 다 체크한 날만 연속 기록에 들어갑니다. 러닝·식사·활동은 세지 않습니다.'}

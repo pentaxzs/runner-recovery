@@ -53,9 +53,17 @@ export function calcStreak(checks, essentialIds, today) {
 
   for (let guard = 0; guard < 400; guard++) {
     const dateStr = toDateStr(cursor);
-    if (cursor.getDay() !== SATURDAY) {
+    const finished = done(dateStr);
+
+    // 토요일은 러닝을 쉬는 날이지 엉덩이 근력 운동을 쉬는 날이 아니다.
+    // 안 한 토요일은 아예 보지 않아 연속을 끊지도, 용서 한 번을 쓰지도
+    // 않는다. 한 토요일은 다른 날과 똑같이 센다 — 하라고 보여주고 해도
+    // 안 세면 거짓말이 된다.
+    const restedSaturday = cursor.getDay() === SATURDAY && !finished;
+
+    if (!restedSaturday) {
       examined++;
-      if (done(dateStr)) {
+      if (finished) {
         streak++;
       } else {
         const recentMisses = missAt.filter((i) => examined - i < 7).length;
@@ -273,14 +281,21 @@ export function weeklyReport({ checks = {}, sessions = [], steps = {}, essential
     ? Math.round(stepDays.reduce((a, b) => a + b, 0) / stepDays.length)
     : 0;
 
-  const essentialDone = days.filter((d) => {
+  // 토요일은 분모에서 뺀다. 연속 기록이 토요일을 필수로 보지 않는데 리포트만
+  // 7로 나누면, 토요일에 쉰 주가 연속은 멀쩡한데 리포트에는 6/7로 찍힌다.
+  // 한 토요일은 보너스로 따로 알린다.
+  const allDone = (d) => {
     const list = checks[d];
     return Array.isArray(list) && essentialIds.every((id) => list.includes(id));
-  }).length;
+  };
+  const required = days.filter((d) => parseLocalDate(d).getDay() !== SATURDAY);
+  const essentialDone = required.filter(allDone).length;
+  const satDone = days.some((d) => parseLocalDate(d).getDay() === SATURDAY && allDone(d));
 
   return {
     essentialDone,
-    essentialTarget: 7,
+    essentialTarget: required.length,
+    satDone,
     runCount: runs.length,
     totalKm: round1(runs.reduce((sum, s) => sum + (Number(s.distanceKm) || 0), 0)),
     bestPainFreeKm: round1(best),
