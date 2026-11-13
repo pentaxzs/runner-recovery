@@ -689,6 +689,15 @@ function metricRow(label, trend, unit, lowerIsBetter) {
 
 // 체지방량 kg에는 90cm 같은 임상 기준선이 없다. 숫자 옆에서 '이게 좋은 쪽인가'를
 // 말해주는 건 자기 첫 측정값과, 근육이 같이 빠지고 있는지 여부뿐이다.
+// 추세선 색은 방향을 따라간다. 체지방량이 내려가는데 빨간 선이면 좋은 소식을
+// 경고로 읽게 되고, 올라가는데 초록이면 거짓말이 된다. 측정 오차 안에서
+// 움직이는 동안은 둘 다 아니므로 중립색이다.
+function trendColor(trend, lowerIsBetter = true) {
+  if (!trend || trend.count < 2 || Math.abs(trend.delta) < BODY_NOISE_KG) return 'var(--brand)';
+  const good = lowerIsBetter ? trend.delta < 0 : trend.delta > 0;
+  return good ? 'var(--ok)' : 'var(--warn)';
+}
+
 function bodyNote(verdict, fat, muscle) {
   const d = (t) => Math.abs(t.delta);
   switch (verdict) {
@@ -748,7 +757,9 @@ function renderBodyCard() {
       <p class="muted" style="margin:8px 0 0;font-size:11px">
         최근 30일 중 ${mLate}일. 복부지방에 가장 큰 레버입니다.
       </p>
-      ${fat.count >= 2 ? sparkline(fat.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
+      ${fat.count >= 2
+        ? sparkline(fat.entries, trendColor(fat))
+        : sparkline(w.entries, trendColor(w))}
     </div>`;
 }
 
