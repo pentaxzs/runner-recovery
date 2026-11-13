@@ -1553,9 +1553,12 @@ export function renderToday() {
   // 계획한 날은 그대로 펼친다. 아닌 날은 한 줄로 접어서, 권하지는 않되
   // 길은 열어둔다. 설정을 고치러 가거나 "지난 날짜 추가"로 오늘을 찾아
   // 들어가는 길밖에 없던 게 이상했다.
+  const restLabel = parseLocalDate(today).getDay() === SATURDAY
+    ? '오늘은 쉬는 날'
+    : '오늘은 계획에 없는 날';
   const runBlock = !runBody ? '' : runToday ? runBody : `
     <details class="collapse run-optional">
-      <summary>오늘은 계획에 없는 날${backToBack ? ' · 어제 뛰었습니다' : ''}</summary>
+      <summary>${restLabel}${backToBack ? ' · 어제 뛰었습니다' : ''}</summary>
       <div class="body">${runBody}</div>
     </details>`;
 
@@ -1565,25 +1568,21 @@ export function renderToday() {
       <span class="todo-count">${todoDone}/${todoTotal}</span>
     </div>`;
 
-  if (day === SATURDAY) {
-    parts.push(`
-      <details class="collapse">
-        <summary>필수 2개 (쉬는 날이라 선택)</summary>
-        <div class="body">${essentialRows}</div>
-      </details>`);
-  } else {
-    parts.push(`
-      <div class="card">
-        ${todoHead}
-        <p class="muted" style="margin:2px 0 0;font-size:12px">
-          ${essDone === essTotal
+  // 쉬는 날은 러닝에만 해당하는 말이다. 필수 2개는 토요일에도 평소처럼
+  // 보인다 — 접어두면 쉬는 날에 안 하는 게 기본인 것처럼 읽힌다.
+  parts.push(`
+    <div class="card">
+      ${todoHead}
+      <p class="muted" style="margin:2px 0 0;font-size:12px">
+        ${day === SATURDAY
+          ? '토요일은 연속 기록에서 건너뜁니다. 해도 되고 안 해도 끊기지 않습니다.'
+          : essDone === essTotal
             ? '필수 완료. 연속 기록이 올라갔습니다.'
             : '아래 운동 2개를 다 체크한 날만 연속 기록에 들어갑니다. 러닝·식사·활동은 세지 않습니다.'}
-        </p>
-        ${runBlock}
-        <div style="margin-top:${runToday ? '4px' : '6px'}">${essentialRows}</div>
-      </div>`);
-  }
+      </p>
+      ${runBlock}
+      <div style="margin-top:${runToday ? '4px' : '6px'}">${essentialRows}</div>
+    </div>`);
 
   // 4. 자투리 미션 3개
   const missions = pickMissions(MICRO_MISSIONS, today, 3);
