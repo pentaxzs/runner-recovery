@@ -98,7 +98,7 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 6px;
   margin-bottom: var(--gap);

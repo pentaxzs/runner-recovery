@@ -15,13 +15,13 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
-  cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS,
+  cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow,
   countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
 
 const store = createStore();
-const TABS = ['home', 'today', 'log', 'guide'];
+const TABS = ['today', 'log', 'guide'];
 const ESSENTIAL_IDS = TASKS.filter((t) => t.tier === 'essential').map((t) => t.id);
 const SUNDAY = 0;
 const SATURDAY = 6;
@@ -90,7 +90,6 @@ export function activateTab(name, dir) {
     b.classList.toggle('active', b.dataset.tab === target);
   });
   store.set('lastTab', target);
-  if (target === 'home') renderHome();
   if (target === 'log') renderLog();
   if (target === 'guide') renderGuide();
 }
@@ -485,13 +484,14 @@ function renderGrid(checks, settings, today, sessions) {
     </div>`;
 }
 
-function renderHome() {
-  const root = document.getElementById('tab-home');
+// ── 요약 (기록 탭 머리) ─────────────────────────────────────
+// 홈 탭을 기록 탭으로 합쳤다. 같은 숫자를 두 탭에서 다르게 보여주느라
+// 8주 통증 추이와 복부지방 카드가 큰 차트·체성분 카드와 겹쳐 있었다.
+function renderSummary() {
   const today = todayStr();
   const settings = getSettings();
   const checks = getChecks();
   const sessions = getSessions();
-  const steps = getSteps();
 
   const streak = calcStreak(checks, ESSENTIAL_IDS, today);
   const best = longestStreak(checks, ESSENTIAL_IDS, today, 180);
@@ -506,9 +506,7 @@ function renderHome() {
   const runsPrev = sessions.filter((s) => s.type === 'run' && s.date >= prevFrom && s.date <= prevTo).length;
 
   const goal = weeklyRunGoal(settings, sessions, toDateStr(mondayOf(parseLocalDate(today))), today);
-  const cum = cumulativeStats(sessions, steps);
 
-  // 이번 주 요일별 필수 달성 (0~2)
   const weekStart = mondayOf(parseLocalDate(today));
   const weekDays = Array.from({ length: 7 }, (_, i) => toDateStr(addDays(weekStart, i)));
   const weekBars = weekDays.map((d) => {
@@ -516,20 +514,7 @@ function renderHome() {
     return { d, n: ESSENTIAL_IDS.filter((id) => list.includes(id)).length, future: d > today };
   });
 
-  // 복부지방 — 행동(식사)과 측정값을 한 카드에
-  const mealDates = lastNDays(today, 30).filter((d) => !settings.startedAt || d >= settings.startedAt);
-  const mLate = countCheckDays(checks, 'm-late', mealDates);
-  const wT = metricTrend(getWeights(), today, null);
-  const fatT = metricTrend(getFatMass(), today, null);
-  const muscleT = metricTrend(getMuscle(), today, null);
-  const note = bodyNote(bodyVerdict(fatT, muscleT), fatT, muscleT);
-
-  // 8주 통증 추이
-  const from8w = toDateStr(addDays(parseLocalDate(today), -55));
-  const trendRuns = sessions.filter((s) => s.type === 'run' && s.date >= from8w);
-  const { points } = chartPoints(trendRuns, 180, 44);
-
-  root.innerHTML = `
+  return `
     <div class="tiles">
       ${tile(streak, `연속 · 최장 ${best}일`, 0, '일')}
       ${tile(bestNow || '–', '통증없이 뛴 최고', bestNow && bestPrev ? Math.round((bestNow - bestPrev) * 10) / 10 : 0, bestNow ? 'km' : '')}
@@ -538,8 +523,8 @@ function renderHome() {
 
     <div class="card">
       <div class="todo-head">
-        <h3>이번 주 러닝</h3>
-        <span class="todo-count">${goal.done}/${goal.target}</span>
+        <h3>이번 주</h3>
+        <span class="todo-count">러닝 ${goal.done}/${goal.target}</span>
       </div>
       <div class="goalbar">
         ${Array.from({ length: goal.target }, (_, i) =>
@@ -550,68 +535,41 @@ function renderHome() {
           ? '이번 주 계획을 다 채웠습니다.'
           : `계획한 요일: ${(settings.runDays || []).map((d) => DOW[d]).join('·')}${(settings.runDays || []).length ? '·' : ''}일`}
       </p>
-    </div>
-
-    ${renderGrid(checks, settings, today, sessions)}
-
-    <div class="split">
-      <div class="card">
-        <h3>이번 주 필수</h3>
-        <div class="weekbars">
-          ${weekBars.map((b) => `
-            <div class="wb">
-              <span class="wb-fill wb-${b.future ? 'f' : b.n}"></span>
-              <span class="wb-d">${DOW[parseLocalDate(b.d).getDay()]}</span>
-            </div>`).join('')}
-        </div>
-      </div>
-      <div class="card">
-        <h3>8주 통증 추이</h3>
-        ${points.length > 1 ? `
-          <svg class="chart" viewBox="0 0 196 60" role="img" aria-label="통증 없이 뛴 거리 추이">
-            <polyline fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round"
-              points="${points.map((p) => `${p.x + 8},${p.y + 8}`).join(' ')}"/>
-          </svg>
-          <div class="muted" style="font-size:11px">최근 ${points.length}회</div>`
-        : '<div class="empty" style="padding:14px">러닝 2회부터 그려집니다.</div>'}
+      <div class="section-title" style="margin:14px 2px 6px">요일별 필수</div>
+      <div class="weekbars">
+        ${weekBars.map((b) => `
+          <div class="wb">
+            <span class="wb-fill wb-${b.future ? 'f' : b.n}"></span>
+            <span class="wb-d">${DOW[parseLocalDate(b.d).getDay()]}</span>
+          </div>`).join('')}
       </div>
     </div>
 
-    <div class="card">
-      <div class="todo-head">
-        <h3>복부지방</h3>
-        <span class="todo-count">${mLate}/${mealDates.length}</span>
-      </div>
-      <p class="muted" style="margin:2px 0 0;font-size:12px">
-        최근 30일 중 <b>21시 이후 간식 없음</b>을 지킨 날. 복부지방에 가장 큰 레버입니다.
-      </p>
-      <div class="goalbar" style="margin-top:10px">
-        ${mealDates.slice(-15).map((d) =>
-          `<span class="gslot${(checks[d] || []).includes('m-late') ? ' on' : ''}"></span>`).join('')}
-      </div>
-      <div style="margin-top:12px">
-        ${metricRow('체지방량', fatT, 'kg', true)}
-        ${metricRow('골격근량', muscleT, 'kg', false)}
-        ${metricRow('체중', wT, 'kg', true)}
-      </div>
-      <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
-    </div>
+    ${renderGrid(checks, settings, today, sessions)}`;
+}
 
-    <div class="card">
-      <h3>누적</h3>
-      <div class="kv"><span class="k">러닝</span><span class="v">${cum.runKm}km · ${cum.runCount}회</span></div>
-      ${cum.hasSteps
-        ? `<div class="kv"><span class="k">걷기 (추정)</span><span class="v">약 ${cum.walkKm}km</span></div>
-           <div class="kv"><span class="k">걸음 수</span><span class="v">${cum.stepTotal.toLocaleString('ko-KR')}보</span></div>`
-        : ''}
-      ${Object.keys(cum.activities).length
-        ? `<div class="kv"><span class="k">다른 활동</span><span class="v">${
-            Object.entries(cum.activities).map(([k, n]) => `${escapeHtml(ACTIVITY_LABELS[k] || k)} ${n}`).join(' · ')
-          }</span></div>`
-        : ''}
-      ${cum.hasSteps ? '<p class="muted" style="margin:8px 0 0;font-size:11px">걷기 거리는 보폭 0.7m 가정 추정치입니다.</p>' : ''}
-    </div>
-  `;
+// ── 누적 ────────────────────────────────────────────────────
+// 매일 볼 숫자는 아니라서 접어둔다.
+function renderCumulative() {
+  const cum = cumulativeStats(getSessions(), getSteps());
+  if (!cum.runCount && !cum.hasSteps && !Object.keys(cum.activities).length) return '';
+  return `
+    <details class="collapse">
+      <summary>누적</summary>
+      <div class="body">
+        <div class="kv"><span class="k">러닝</span><span class="v">${cum.runKm}km · ${cum.runCount}회</span></div>
+        ${cum.hasSteps
+          ? `<div class="kv"><span class="k">걷기 (추정)</span><span class="v">약 ${cum.walkKm}km</span></div>
+             <div class="kv"><span class="k">걸음 수</span><span class="v">${cum.stepTotal.toLocaleString('ko-KR')}보</span></div>`
+          : ''}
+        ${Object.keys(cum.activities).length
+          ? `<div class="kv"><span class="k">다른 활동</span><span class="v">${
+              Object.entries(cum.activities).map(([k, n]) => `${escapeHtml(ACTIVITY_LABELS[k] || k)} ${n}`).join(' · ')
+            }</span></div>`
+          : ''}
+        ${cum.hasSteps ? '<p class="muted" style="margin:8px 0 0;font-size:11px">걷기 거리는 보폭 0.7m 가정 추정치입니다.</p>' : ''}
+      </div>
+    </details>`;
 }
 
 // ── 기록 탭 ─────────────────────────────────────────────────
@@ -664,11 +622,10 @@ function renderStepBars(steps) {
 }
 
 function renderWeeklyReport() {
-  const now = new Date();
-  const isSundayNight = now.getDay() === SUNDAY && now.getHours() >= 22;
-  if (!isSundayNight) return '';
+  const win = reportWindow(new Date());
+  if (!win) return '';
 
-  const weekStart = toDateStr(mondayOf(now));
+  const weekStart = win.weekStartStr;
   const r = weeklyReport({
     checks: getChecks(), sessions: getSessions(), steps: getSteps(), essentialIds: ESSENTIAL_IDS,
   }, weekStart);
@@ -681,7 +638,7 @@ function renderWeeklyReport() {
 
   return `
     <div class="card">
-      <h2>이번 주 리포트</h2>
+      <h2>${win.isLastWeek ? '지난주' : '이번 주'} 리포트</h2>
       <div class="kv"><span class="k">필수 달성</span><span class="v">${r.essentialDone} / ${r.essentialTarget}일</span></div>
       <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
       <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
@@ -756,9 +713,19 @@ function renderBodyCard() {
   const note = bodyNote(bodyVerdict(fat, muscle), fat, muscle);
   const pct = bodyFatPercent(fat.latest, w.latest);
 
+  // 측정은 결과고, 21시 이후 간식이 그 결과를 움직이는 레버다. 둘을 떼어
+  // 놓으면 숫자만 보고 행동은 안 보인다.
+  const settings = getSettings();
+  const checks = getChecks();
+  const mealDates = lastNDays(today, 30).filter((d) => !settings.startedAt || d >= settings.startedAt);
+  const mLate = countCheckDays(checks, 'm-late', mealDates);
+
   return `
     <div class="card">
-      <h3>체성분 <span class="muted" style="font-weight:600">· 주 1회 인바디</span></h3>
+      <div class="todo-head">
+        <h3>체성분 <span class="muted" style="font-weight:600">· 주 1회 인바디</span></h3>
+        <span class="todo-count">간식 ${mLate}/${mealDates.length}</span>
+      </div>
       <p class="muted" style="margin:4px 0 0;font-size:12px">
         체지방량이 추세선, 골격근량이 대조군입니다. 체중 하나로는 빠진 게
         지방인지 근육인지 구분할 수 없습니다.
@@ -773,6 +740,14 @@ function renderBodyCard() {
       </div>
       <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
       <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
+      <div class="section-title" style="margin:14px 2px 6px">21시 이후 간식 없음</div>
+      <div class="goalbar">
+        ${mealDates.slice(-15).map((d) =>
+          `<span class="gslot${(checks[d] || []).includes('m-late') ? ' on' : ''}"></span>`).join('')}
+      </div>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">
+        최근 30일 중 ${mLate}일. 복부지방에 가장 큰 레버입니다.
+      </p>
       ${fat.count >= 2 ? sparkline(fat.entries, 'var(--warn)') : sparkline(w.entries, 'var(--ok)')}
     </div>`;
 }
@@ -825,7 +800,6 @@ function openBodyModal() {
       closeModal();
       renderToday();
       renderLog();
-      if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
     });
   }, {
     footer: `
@@ -843,6 +817,7 @@ function renderLog() {
 
   root.innerHTML = `
     ${renderWeeklyReport()}
+    ${renderSummary()}
     <div class="card">
       <h2>통증 없이 뛴 거리</h2>
       <p class="muted" style="margin:4px 0 0">선이 올라가면 회복되고 있다는 뜻입니다. 빨간 점은 통증이 있던 날입니다.</p>
@@ -855,13 +830,16 @@ function renderLog() {
       ${renderStepBars(steps) || `<div class="empty">아직 기록이 없습니다.<br>
         오늘 탭에서 입력하세요.</div>`}
     </div>
-    <div class="card">
-      <div class="todo-head">
-        <h3>세션 기록</h3>
-        <button class="btn btn-sm" id="backfillBtn" type="button">지난 날짜 추가</button>
+    ${renderCumulative()}
+    <details class="collapse">
+      <summary>세션 기록</summary>
+      <div class="body">
+        <button class="btn btn-sm" id="backfillBtn" type="button" style="width:100%;margin-bottom:6px">
+          지난 날짜 추가
+        </button>
+        <div id="logList"></div>
       </div>
-      <div id="logList" style="margin-top:4px"></div>
-    </div>
+    </details>
   `;
 
   const bfBtn = root.querySelector('#backfillBtn');
@@ -952,7 +930,7 @@ function renderHabitCard() {
 
   // 식사 항목마다 그날 제시됐던 날짜만 모은다
   const mealRows = [];
-  const seen = new Set();
+  const seen = new Set(['m-late']); // 21시 간식은 체성분 카드가 레버로 들고 있다
   for (const d of dates) {
     for (const m of mealChecksFor(d, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND)) {
       if (seen.has(m.id)) continue;
@@ -966,7 +944,13 @@ function renderHabitCard() {
   const missionCount = countChecks(checks, MISSION_IDS, dates);
   const missionDays = countAnyCheckDays(checks, MISSION_IDS, dates);
   const extraDays = countAnyCheckDays(checks, EXTRA_IDS, dates);
-  const nothing = mealRows.every((r) => r.done === 0) && missionCount === 0 && extraDays === 0;
+  // 필수 둘을 다 채운 날. 연속 기록이 세는 것과 같은 기준이다.
+  const essentialDays = dates.filter((d) => {
+    const list = checks[d];
+    return Array.isArray(list) && ESSENTIAL_IDS.every((id) => list.includes(id));
+  }).length;
+  const nothing = mealRows.every((r) => r.done === 0)
+    && missionCount === 0 && extraDays === 0 && essentialDays === 0;
 
   return `
     <div class="card">
@@ -975,6 +959,10 @@ function renderHabitCard() {
         <div class="empty" style="padding:14px">아직 기록이 없습니다.<br>
           오늘 탭에서 식사와 자투리를 체크하면 여기에 쌓입니다.</div>` : `
         <div style="margin-top:8px">
+          <div class="kv">
+            <span class="k">필수 운동 <span class="muted" style="font-weight:600">· 둘 다</span></span>
+            <span class="v">${essentialDays}<span class="muted" style="font-weight:600">/${dates.length}일</span></span>
+          </div>
           ${mealRows.map((r) => `
             <div class="kv">
               <span class="k">${escapeHtml(r.text)}</span>
@@ -991,6 +979,7 @@ function renderHabitCard() {
         </div>
         <p class="muted" style="margin:8px 0 0;font-size:11px">
           식사는 그날 제시된 날만 셉니다 — 아침·점심은 평일, 저녁 과식은 주말입니다.
+          21시 이후 간식은 체성분 카드에 있습니다.
         </p>`}
     </div>`;
 }
@@ -1388,7 +1377,6 @@ function openSessionEditor(index) {
 function afterSessionChange() {
   renderLog();
   renderToday();
-  if (!document.getElementById('tab-home').classList.contains('hidden')) renderHome();
 }
 
 // 운동 체크 한 줄. 필수와 접힌 섹션이 같은 마크업을 쓰도록 여기로 모았다.

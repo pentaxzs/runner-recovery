@@ -38,6 +38,7 @@ export function isValidDateStr(s) {
 
 // ── 연속 기록 ────────────────────────────────────────────────
 const SATURDAY = 6;
+const SUNDAY_DOW = 0;
 
 export function calcStreak(checks, essentialIds, today) {
   const done = (dateStr) => {
@@ -232,6 +233,26 @@ const round1 = (n) => Math.round(n * 10) / 10;
 function runsBetween(sessions, startStr, endStr) {
   return (sessions || []).filter(
     (s) => s.type === 'run' && s.date >= startStr && s.date <= endStr);
+}
+
+// 주간 리포트를 언제 보여줄지. 일요일 22시부터 자정까지만 열어두면 주당
+// 두 시간이라 대부분 놓친다. 일요일 저녁에 열어 수요일 끝까지 둔다 —
+// 저녁 세 번은 걸린다. 목요일이면 새 주가 한창이라 지난 성적표는 치운다.
+const REPORT_OPEN_HOUR = 18;
+const REPORT_LAST_DAY = 3; // 수요일
+
+export function reportWindow(date) {
+  const day = date.getDay();
+
+  if (day === SUNDAY_DOW) {
+    if (date.getHours() < REPORT_OPEN_HOUR) return null;
+    return { weekStartStr: toDateStr(mondayOf(date)), isLastWeek: false };
+  }
+  if (day >= 1 && day <= REPORT_LAST_DAY) {
+    // 월요일이면 mondayOf는 오늘이다. 한 주 뒤로 물러야 끝난 주를 가리킨다.
+    return { weekStartStr: toDateStr(addDays(mondayOf(date), -7)), isLastWeek: true };
+  }
+  return null;
 }
 
 export function weeklyReport({ checks = {}, sessions = [], steps = {}, essentialIds = [] }, weekStartStr) {
