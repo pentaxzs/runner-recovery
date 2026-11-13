@@ -15,7 +15,7 @@ import {
   phaseFor, doseFor, fmtDuration, PHASES, parseStepsValue,
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
-  cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow,
+  cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow, daysSinceLastRun,
   countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
@@ -1479,7 +1479,11 @@ export function renderToday() {
       </div>`);
   }
 
-  const runBlock = runToday ? `
+  // 계획에 없는 날에도 뛰고 싶을 때가 있다. 사다리는 날짜가 아니라 통증을
+  // 보고 올라가므로 막을 근거가 없다. 다만 권하지는 않으니 접어둔다.
+  const sinceRun = daysSinceLastRun(sessions, today);
+  const backToBack = sinceRun === 1;
+  const runBody = !isPaused(settings, today) ? `
     <div class="run-block">
       <div class="label">러닝 · Lv${level.level}${store.get('lightDay', '') === today ? ' · 가볍게' : ''}</div>
       ${level.runMin > 0 ? (() => {
@@ -1513,6 +1517,11 @@ export function renderToday() {
           </div>` : ''}
           <ul>${RUN_RULES.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
       })()}
+      ${backToBack ? `
+        <div class="run-warn">
+          <b>어제 뛰었습니다</b><br>
+          연속으로 뛰면 장경인대가 가라앉을 틈이 없습니다. 하루 걸러 뛰는 게 기본입니다.
+        </div>` : ''}
       ${heavyToday.length ? `
         <div class="run-warn">
           <b>오늘 ${escapeHtml(heavyToday.map((a) => ACTIVITY_LABELS[a.kind] || a.kind).join(', '))}을 했습니다</b><br>
@@ -1529,6 +1538,15 @@ export function renderToday() {
         </button>
       </div>
     </div>` : '';
+
+  // 계획한 날은 그대로 펼친다. 아닌 날은 한 줄로 접어서, 권하지는 않되
+  // 길은 열어둔다. 설정을 고치러 가거나 "지난 날짜 추가"로 오늘을 찾아
+  // 들어가는 길밖에 없던 게 이상했다.
+  const runBlock = !runBody ? '' : runToday ? runBody : `
+    <details class="collapse run-optional">
+      <summary>오늘은 계획에 없는 날${backToBack ? ' · 어제 뛰었습니다' : ''}</summary>
+      <div class="body">${runBody}</div>
+    </details>`;
 
   const todoHead = `
     <div class="todo-head">

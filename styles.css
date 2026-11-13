@@ -1230,3 +1230,9 @@ body.modal-open {
 }
 .datepick input[type="date"] { min-height: 52px; background: var(--surface); }
 .datepick .dp-hint { font-size: 12px; color: var(--muted); margin-top: 7px; }
+
+/* 계획에 없는 날의 러닝. 길은 열어두되 권하지 않는다는 뜻이라, 펼치기 전까지
+   한 줄로만 있는다. */
+.run-optional { margin: 12px 0 4px; }
+.run-optional > summary { color: var(--muted); font-weight: 700; }
+.run-optional .run-block { margin-top: 0; }

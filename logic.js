@@ -545,6 +545,20 @@ export function cumulativeStats(sessions, steps) {
   };
 }
 
+// 마지막 러닝이 며칠 전인가. 0이면 오늘 이미 뛰었고, 1이면 어제 뛰었다는
+// 뜻이다. 장경인대는 자극이 가라앉는 데 시간이 걸려서 연속으로 뛰면 쌓인다.
+// 막지는 않되 뛰기 전에 사실은 알려준다.
+export function daysSinceLastRun(sessions, todayStr) {
+  const dates = (sessions || [])
+    .filter((s) => s && s.type === 'run' && typeof s.date === 'string' && s.date <= todayStr)
+    .map((s) => s.date);
+  if (dates.length === 0) return null;
+
+  const last = dates.reduce((a, b) => (a > b ? a : b));
+  const ms = parseLocalDate(todayStr) - parseLocalDate(last);
+  return Math.round(ms / 86400000);
+}
+
 export function bestPainFreeIn(sessions, fromStr, toStr) {
   const runs = (sessions || [])
     .filter((s) => s.type === 'run' && s.date >= fromStr && s.date <= toStr);
