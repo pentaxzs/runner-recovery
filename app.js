@@ -487,6 +487,9 @@ function tile(value, label, delta, unit) {
 function renderGrid(checks, settings, today, sessions) {
   const days = lastNDays(today, GRID_DAYS);
   const ranOn = new Set(sessions.filter((s) => s.type === 'run').map((s) => s.date));
+  // 이 격자는 두 가지를 겹쳐 보여준다 — 칸 색은 필수, 모서리는 러닝. 배지가
+  // 필수만 세면 러닝 표시 개수를 맞춰볼 숫자가 화면에 없다.
+  const ranIn30 = days.filter((d) => ranOn.has(d)).length;
   const counted = days.filter((d) => {
     const st = dayStatus(d, { checks, essentialIds: ESSENTIAL_IDS, startedAt: settings.startedAt, today });
     return st === 'full' || st === 'partial' || st === 'none';
@@ -498,7 +501,8 @@ function renderGrid(checks, settings, today, sessions) {
     <div class="card">
       <div class="todo-head">
         <h3>최근 30일</h3>
-        <span class="todo-count">필수 ${fullCount}/${counted.length}</span>
+        <span class="todo-count">필수 ${fullCount}/${counted.length}${
+          ranIn30 ? ` <span class="muted" style="font-weight:700">· 러닝 ${ranIn30}</span>` : ''}</span>
       </div>
       <div class="grid30">
         ${days.map((d) => {
