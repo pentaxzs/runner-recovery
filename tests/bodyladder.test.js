@@ -84,16 +84,18 @@ test('a far target still terminates', () => {
 // 늘었다고 지금 값으로 기준을 옮기면, 늘어날수록 다음 목표가 쉬워진다.
 // 체지방량·체중 게이지는 첫 측정을 쓰는데 체지방률만 다른 기준을 쓰면
 // 같은 카드에서 세 숫자가 다른 말을 한다.
-test('gaining does not move the rung — the start holds', () => {
+// 늘었을 때는 사다리 아래쪽 칸이 아니라 복귀 칸을 겨눈다. 아래 칸을 그대로
+// 겨누면 돌아오는 구간 내내 0%라 움직임이 안 보인다.
+test('gaining aims at the start, not at a rung below it', () => {
   const a = bodyFatAim(24.7, 25.4, 20, STEP);
-  assert.equal(a.from, 24.7, '첫 측정이 출발선이다');
-  assert.equal(a.aim, 23.2, '늘었다고 목표가 내려오지 않는다');
+  assert.equal(a.aim, 24.7, '복귀가 먼저다');
+  assert.equal(a.recovering, true);
 });
 
-test('gaining a lot still aims from the start', () => {
+test('gaining a lot still aims at the start, never lower', () => {
   const a = bodyFatAim(20, 30, 18, STEP);
-  assert.equal(a.from, 20);
-  assert.equal(a.aim, 18.5);
+  assert.equal(a.aim, 20);
+  assert.equal(a.recovering, true);
 });
 
 // 다시 줄어 시작 아래로 내려오면 사다리가 원래대로 이어진다
@@ -101,4 +103,47 @@ test('coming back under the start resumes the ladder', () => {
   const a = bodyFatAim(24.7, 24.0, 20, STEP);
   assert.equal(a.from, 24.7);
   assert.equal(a.aim, 23.2);
+});
+
+// ── 시작보다 위에 있으면 복귀가 첫 칸 ───────────────────────
+// 첫 측정으로 돌아갈 때까지 통째로 0%면, 0.4kg을 빼도 화면이 아무 반응이
+// 없다. 사다리 맨 위에 "시작점 복귀" 칸을 하나 더 둔다.
+test('being above the start makes the start itself the aim', () => {
+  const a = bodyFatAim(24.7, 25.4, 20, STEP, 25.9);
+  assert.equal(a.aim, 24.7, '복귀 목표는 첫 측정');
+  assert.equal(a.from, 25.9, '출발선은 지금까지 최악값');
+  assert.equal(a.recovering, true);
+});
+
+test('the recovery target never gets easier as you gain', () => {
+  const a = bodyFatAim(24.7, 25.4, 20, STEP, 25.9);
+  const b = bodyFatAim(24.7, 27.0, 20, STEP, 27.0);
+  assert.equal(a.aim, b.aim, '더 늘어도 복귀 목표는 첫 측정 그대로');
+});
+
+test('sitting at your worst is zero, and coming down fills', () => {
+  const atWorst = bodyFatAim(24.7, 25.9, 20, STEP, 25.9);
+  assert.equal(atWorst.from, atWorst.aim === 24.7 ? 25.9 : atWorst.from);
+  // 25.9 → 25.4로 내려오면 출발선과 목표 사이를 지난다
+  const moving = bodyFatAim(24.7, 25.4, 20, STEP, 25.9);
+  assert.ok(moving.from > moving.aim);
+});
+
+test('crossing back under the start resumes the normal ladder', () => {
+  const a = bodyFatAim(24.7, 24.6, 20, STEP, 25.9);
+  assert.equal(a.recovering, false);
+  assert.equal(a.aim, 23.2);
+  assert.equal(a.from, 24.7);
+});
+
+// 최악값을 안 주면 현재를 출발선으로 본다
+test('without a worst value the current reading is the start line', () => {
+  const a = bodyFatAim(24.7, 25.4, 20, STEP);
+  assert.equal(a.aim, 24.7);
+  assert.equal(a.from, 25.4);
+});
+
+test('a worst below the current is ignored', () => {
+  const a = bodyFatAim(24.7, 25.4, 20, STEP, 25.0);
+  assert.equal(a.from, 25.4, '지금이 최악이면 지금이 출발선');
 });

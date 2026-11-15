@@ -678,11 +678,22 @@ export function firstPaired(a, b) {
   return { date, a: left[date], b: right[date] };
 }
 
-export function bodyFatAim(startPct, currentPct, finalPct, stepPct) {
+export function bodyFatAim(startPct, currentPct, finalPct, stepPct, worstPct) {
   if (![startPct, currentPct, finalPct, stepPct].every((n) => Number.isFinite(n))) return null;
   if (stepPct <= 0) return null;
 
-  if (currentPct <= finalPct) return { aim: round1(finalPct), from: round1(startPct), done: true };
+  if (currentPct <= finalPct) {
+    return { aim: round1(finalPct), from: round1(startPct), done: true, recovering: false };
+  }
+
+  // 시작보다 위에 있으면 사다리 맨 위에 칸이 하나 더 있다 — 시작점으로
+  // 복귀하는 구간이다. 첫 측정까지 통째로 0%면 0.4kg을 빼도 화면이 아무
+  // 반응을 안 한다. 복귀 목표는 첫 측정에 고정이라 늘어도 쉬워지지 않고,
+  // 출발선만 지금까지의 최악값으로 잡는다.
+  if (currentPct > startPct) {
+    const worst = Number.isFinite(worstPct) ? Math.max(worstPct, currentPct) : currentPct;
+    return { aim: round1(startPct), from: round1(worst), done: false, recovering: true };
+  }
 
   // 기준은 언제나 첫 측정이다. 늘었다고 지금 값으로 옮기면 늘어날수록 다음
   // 목표가 쉬워진다 — 뒤로 간 걸 보상하는 셈이다. 체지방량·체중 게이지도
@@ -692,12 +703,12 @@ export function bodyFatAim(startPct, currentPct, finalPct, stepPct) {
 
   for (let guard = 0; guard < 500; guard++) {
     const next = Math.max(finalPct, rung - stepPct);
-    if (next < currentPct - 1e-9) return { aim: round1(next), from: round1(rung), done: false };
-    if (next <= finalPct) return { aim: round1(finalPct), from: round1(rung), done: false };
+    if (next < currentPct - 1e-9) return { aim: round1(next), from: round1(rung), done: false, recovering: false };
+    if (next <= finalPct) return { aim: round1(finalPct), from: round1(rung), done: false, recovering: false };
     from = rung;
     rung = next;
   }
-  return { aim: round1(finalPct), from: round1(from), done: false };
+  return { aim: round1(finalPct), from: round1(from), done: false, recovering: false };
 }
 
 export function bodyTargets(weightKg, fatMassKg, targetPct) {

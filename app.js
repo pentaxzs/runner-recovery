@@ -814,9 +814,23 @@ function renderBodyCard() {
   // 한 번만 재면 시작이 곧 현재라 진행을 낼 수 없다. 0%짜리 막대를 그리면
   // 아무것도 안 한 것처럼 보이므로, 남은 거리만 적고 이유를 밝힌다.
   const onlyOnce = fat.count < 2 || w.count < 2;
+  // 지금까지의 최악값. 복귀 구간의 출발선이 된다.
+  const worstOf = (trend) => (trend.entries.length ? Math.max(...trend.entries.map((e) => e.value)) : null);
+  const worstFat = worstOf(fat);
+  const worstW = worstOf(w);
   // 최종 목표까지 한 번에 재지 않는다. 다음 한 칸만 조준한다.
+  // 짝이 맞는 날짜들의 체지방률 중 가장 높은 값
+  const worstPct = (() => {
+    const fm = getFatMass();
+    const wm = getWeights();
+    const vals = Object.keys(fm)
+      .filter((d) => Number.isFinite(fm[d]) && Number.isFinite(wm[d]))
+      .map((d) => bodyFatPercent(fm[d], wm[d]))
+      .filter((v) => v !== null);
+    return vals.length ? Math.max(...vals) : null;
+  })();
   const aim = startPct !== null && pct !== null
-    ? bodyFatAim(startPct, pct, t.bodyFatPct, t.bodyFatStep) : null;
+    ? bodyFatAim(startPct, pct, t.bodyFatPct, t.bodyFatStep, worstPct) : null;
   const goals = aim ? bodyTargets(w.latest, fat.latest, aim.aim) : null;
 
   // 측정은 결과고, 21시 이후 간식이 그 결과를 움직이는 레버다. 둘을 떼어
@@ -849,7 +863,7 @@ function renderBodyCard() {
       <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
       ${goals ? `
         <div class="section-title" style="margin:14px 2px 4px">
-          ${aim.done ? '목표 달성' : '지금 조준'}
+          ${aim.done ? '목표 달성' : aim.recovering ? '시작점으로 복귀' : '지금 조준'}
           <span class="muted" style="font-weight:600">· 체지방률 ${aim.aim}%${
             aim.done ? '' : ` · 최종 ${t.bodyFatPct}%`}</span>
         </div>
@@ -858,25 +872,34 @@ function renderBodyCard() {
             <div class="muted">체지방률 ${t.bodyFatPct}% 목표에 닿았습니다.
               더 내리고 싶으면 설정에서 최종 목표를 낮추세요.</div>
           </div>` : `
-          ${gauge('체지방량', `${fat.latest}kg`,
-            `다음 ${goals.fatKg}kg · ${gapText(fat.latest, goals.fatKg, 'kg')}`,
-            onlyOnce ? null : goalProgress(base.a, fat.latest, goals.fatKg),
-            onlyOnce ? `${base ? fmtDate(base.date) : ''} 한 번만 쟀습니다. 다음 측정부터 채워집니다.`
-              : backslidNote(base.a, fat.latest, goals.fatKg, 'kg'))}
-          ${gauge('체중', `${w.latest}kg`,
-            `다음 ${goals.weightKg}kg · ${gapText(w.latest, goals.weightKg, 'kg')}`,
-            onlyOnce ? null : goalProgress(base.b, w.latest, goals.weightKg),
-            onlyOnce ? '' : backslidNote(base.b, w.latest, goals.weightKg, 'kg'))}
-          ${gauge('체지방률', `${pct}%`,
-            `다음 ${aim.aim}% · ${gapText(pct, aim.aim, '%p')}`,
-            onlyOnce ? null : goalProgress(aim.from, pct, aim.aim),
-            onlyOnce ? '' : backslidNote(aim.from, pct, aim.aim, '%p'))}
+          ${(() => {
+            const rf = recoveryAim(base.a, fat.latest, worstFat, goals.fatKg);
+            const rw = recoveryAim(base.b, w.latest, worstW, goals.weightKg);
+            const rp = { from: aim.from, target: aim.aim, recovering: aim.recovering };
+            const word = (r) => (r.recovering ? '복귀' : '다음');
+            return `
+              ${gauge('체지방량', `${fat.latest}kg`,
+                `${word(rf)} ${rf.target}kg · ${gapText(fat.latest, rf.target, 'kg')}`,
+                onlyOnce ? null : goalProgress(rf.from, fat.latest, rf.target),
+                onlyOnce ? `${fmtDate(base.date)} 한 번만 쟀습니다. 다음 측정부터 채워집니다.`
+                  : recoveryNote(rf, fat.latest, 'kg'))}
+              ${gauge('체중', `${w.latest}kg`,
+                `${word(rw)} ${rw.target}kg · ${gapText(w.latest, rw.target, 'kg')}`,
+                onlyOnce ? null : goalProgress(rw.from, w.latest, rw.target),
+                onlyOnce ? '' : recoveryNote(rw, w.latest, 'kg'))}
+              ${gauge('체지방률', `${pct}%`,
+                `${word(rp)} ${rp.target}% · ${gapText(pct, rp.target, '%p')}`,
+                onlyOnce ? null : goalProgress(rp.from, pct, rp.target),
+                onlyOnce ? '' : recoveryNote(rp, pct, '%p'))}`;
+          })()}
           <p class="muted" style="margin:6px 0 0;font-size:11px">
             시작 ${base ? fmtDate(base.date) : ''} · 체지방량 ${base ? base.a : '–'}kg ·
             체중 ${base ? base.b : '–'}kg · 체지방률 ${startPct ?? '–'}% · 기록 ${fat.count}회
           </p>
           <p class="muted" style="margin:8px 0 0;font-size:11px">
-            한 번에 ${t.bodyFatStep}%p씩 내려갑니다. ${aim.aim}%에 닿으면 다음 칸이 내려오고,
+            ${aim.recovering
+              ? `지금은 시작점으로 돌아오는 구간입니다. ${aim.aim}%를 넘어서면 한 번에 ${t.bodyFatStep}%p씩 내려가고,`
+              : `한 번에 ${t.bodyFatStep}%p씩 내려갑니다. ${aim.aim}%에 닿으면 다음 칸이 내려오고,`}
             ${t.bodyFatPct}%에서 멈춥니다. 체지방량과 체중은 제지방량 ${goals.leanKg}kg을
             지킨다고 보고 역산한 값입니다. 골격근량에는 목표선을 긋지 않습니다 —
             늘리는 게 아니라 안 줄이는 게 목표입니다.
@@ -2384,15 +2407,23 @@ function gauge(label, valueText, targetText, p, note) {
     </div>`;
 }
 
-// 시작보다 뒤로 간 경우. 진행률은 0으로 바닥에 붙는데, 그러면 "아직 안 쟀음"과
-// 화면에서 구분되지 않는다. 0이 된 이유를 적어준다.
-const backslidNote = (start, current, target, unit) => {
-  if (![start, current, target].every((n) => Number.isFinite(n))) return '';
-  const wantDown = target < start;
-  const moved = current - start;
-  if (wantDown ? moved <= 0 : moved >= 0) return '';
-  const d = Math.round(Math.abs(moved) * 10) / 10;
-  return `시작보다 ${d}${unit} ${wantDown ? '늘었습니다' : '줄었습니다'}. 게이지는 시작을 넘어서면 찹니다.`;
+// 시작보다 뒤로 갔으면 사다리 맨 위에 칸이 하나 더 있다 — 시작점으로
+// 돌아오는 구간이다. 첫 측정까지 통째로 0%면 0.4kg을 빼도 화면이 아무
+// 반응을 안 한다. 복귀 목표는 첫 측정 고정이라 더 늘어도 쉬워지지 않고,
+// 출발선만 지금까지의 최악값으로 잡는다.
+function recoveryAim(start, current, worst, nextTarget) {
+  if (![start, current].every((n) => Number.isFinite(n))) {
+    return { from: start, target: nextTarget, recovering: false };
+  }
+  if (current <= start) return { from: start, target: nextTarget, recovering: false };
+  const line = Number.isFinite(worst) ? Math.max(worst, current) : current;
+  return { from: line, target: start, recovering: true };
+}
+
+const recoveryNote = (r, current, unit) => {
+  if (!r.recovering) return '';
+  const back = Math.round(Math.abs(current - r.target) * 10) / 10;
+  return `시작보다 ${back}${unit} 늘었습니다. 먼저 시작점으로 돌아오는 중입니다.`;
 };
 
 // 목표까지 얼마나 남았나. 진행률을 못 내는 상황에서도 이 숫자는 낼 수 있다.
