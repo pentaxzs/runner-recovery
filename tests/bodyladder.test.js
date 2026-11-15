@@ -79,3 +79,26 @@ test('a far target still terminates', () => {
   const a = bodyFatAim(60, 59, 5, 0.1);
   assert.ok(a && Number.isFinite(a.aim));
 });
+
+// ── 기준은 언제나 첫 측정 ───────────────────────────────────
+// 늘었다고 지금 값으로 기준을 옮기면, 늘어날수록 다음 목표가 쉬워진다.
+// 체지방량·체중 게이지는 첫 측정을 쓰는데 체지방률만 다른 기준을 쓰면
+// 같은 카드에서 세 숫자가 다른 말을 한다.
+test('gaining does not move the rung — the start holds', () => {
+  const a = bodyFatAim(24.7, 25.4, 20, STEP);
+  assert.equal(a.from, 24.7, '첫 측정이 출발선이다');
+  assert.equal(a.aim, 23.2, '늘었다고 목표가 내려오지 않는다');
+});
+
+test('gaining a lot still aims from the start', () => {
+  const a = bodyFatAim(20, 30, 18, STEP);
+  assert.equal(a.from, 20);
+  assert.equal(a.aim, 18.5);
+});
+
+// 다시 줄어 시작 아래로 내려오면 사다리가 원래대로 이어진다
+test('coming back under the start resumes the ladder', () => {
+  const a = bodyFatAim(24.7, 24.0, 20, STEP);
+  assert.equal(a.from, 24.7);
+  assert.equal(a.aim, 23.2);
+});

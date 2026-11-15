@@ -870,12 +870,7 @@ function renderBodyCard() {
           ${gauge('체지방률', `${pct}%`,
             `다음 ${aim.aim}% · ${gapText(pct, aim.aim, '%p')}`,
             onlyOnce ? null : goalProgress(aim.from, pct, aim.aim),
-            onlyOnce ? ''
-              // 늘었으면 사다리가 지금 값에서 칸을 다시 잡는다. 그래야 다음
-              // 칸이 닿을 거리에 남는다. 다만 조용히 바꾸면 모른다.
-              : Number.isFinite(startPct) && pct > startPct
-                ? `시작 ${startPct}%보다 ${Math.round((pct - startPct) * 10) / 10}%p 늘어, 지금 값에서 칸을 다시 잡았습니다.`
-                : backslidNote(aim.from, pct, aim.aim, '%p'))}
+            onlyOnce ? '' : backslidNote(aim.from, pct, aim.aim, '%p'))}
           <p class="muted" style="margin:6px 0 0;font-size:11px">
             시작 ${base ? fmtDate(base.date) : ''} · 체지방량 ${base ? base.a : '–'}kg ·
             체중 ${base ? base.b : '–'}kg · 체지방률 ${startPct ?? '–'}% · 기록 ${fat.count}회

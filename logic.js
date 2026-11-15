@@ -684,9 +684,11 @@ export function bodyFatAim(startPct, currentPct, finalPct, stepPct) {
 
   if (currentPct <= finalPct) return { aim: round1(finalPct), from: round1(startPct), done: true };
 
+  // 기준은 언제나 첫 측정이다. 늘었다고 지금 값으로 옮기면 늘어날수록 다음
+  // 목표가 쉬워진다 — 뒤로 간 걸 보상하는 셈이다. 체지방량·체중 게이지도
+  // 첫 측정을 쓰므로 세 숫자가 같은 출발선을 공유한다.
   let from = startPct;
-  // 시작이 이미 현재보다 아래면(다시 늘어난 경우) 현재를 출발선으로 본다
-  let rung = Math.max(startPct, currentPct);
+  let rung = startPct;
 
   for (let guard = 0; guard < 500; guard++) {
     const next = Math.max(finalPct, rung - stepPct);
