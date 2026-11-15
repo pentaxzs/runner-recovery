@@ -16,7 +16,7 @@ import {
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
   cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow, daysSinceLastRun,
-  goalProgress, bodyTargets, habitSummary, monthDaysSoFar, plannedRunDaysIn,
+  goalProgress, bodyTargets, bodyFatAim, habitSummary, monthDaysSoFar, plannedRunDaysIn,
   countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
@@ -31,7 +31,7 @@ const COMMUTE_WALK_LABEL = '출퇴근 걷기 45분';
 
 // 목표 기본값. 체지방률 20%는 남성 적정 범위의 상한이고, 외부 기준이 있는
 // 유일한 값이라 여기 하나만 받아 체지방량과 체중을 역산한다.
-const DEFAULT_TARGETS = { bestKm: 2, stepAvg: 8000, bodyFatPct: 20 };
+const DEFAULT_TARGETS = { bestKm: 2, stepAvg: 8000, bodyFatPct: 20, bodyFatStep: 1.5 };
 
 const DEFAULT_SETTINGS = {
   painOnsetKm: 0, runLevel: 1, runDays: [2, 4], startedAt: null, pausedUntil: null,
@@ -342,10 +342,14 @@ function openSettings() {
         <input type="number" id="stBestKm" step="0.1" min="0.5" max="42" value="${t.bestKm}"></label>
       <label class="field"><span>걸음 수 일평균 (보)</span>
         <input type="number" id="stStepAvg" step="500" min="1000" max="${MAX_STEPS}" value="${t.stepAvg}"></label>
-      <label class="field" style="margin-bottom:0"><span>체지방률 (%)</span>
+      <label class="field"><span>체지방률 최종 목표 (%)</span>
         <input type="number" id="stFatPct" step="0.5" min="5" max="40" value="${t.bodyFatPct}"></label>
+      <label class="field" style="margin-bottom:0"><span>한 번에 내려갈 폭 (%p)</span>
+        <input type="number" id="stFatStep" step="0.5" min="0.5" max="5" value="${t.bodyFatStep}"></label>
       <p class="muted" style="margin:8px 0 0;font-size:11px">
-        체지방량과 체중 목표는 이 비율에서 역산합니다. 남성 적정 범위의 상한이 20%입니다.
+        최종 목표까지 한 번에 재지 않고 이 폭만큼씩 내려갑니다. 체지방량과 체중은
+        그 다음 칸에서 역산합니다. 기준은 하나가 아닙니다 — 체성분계 계열은 남성
+        정상 상한을 20%로, ACE 계열은 24%까지 적정으로 봅니다.
       </p>
     </div>
 
@@ -454,6 +458,7 @@ function openSettings() {
           bestKm: num('#stBestKm', 0.5, 42, t.bestKm),
           stepAvg: Math.round(num('#stStepAvg', 1000, MAX_STEPS, t.stepAvg)),
           bodyFatPct: num('#stFatPct', 5, 40, t.bodyFatPct),
+          bodyFatStep: num('#stFatStep', 0.5, 5, t.bodyFatStep),
         },
       });
       closeModal();
@@ -801,8 +806,11 @@ function renderBodyCard() {
   // 달지 않는다 — 회복 프로그램에서 근육을 늘리는 건 목표가 아니고 줄지
   // 않는 게 성공이라, 목표선을 그으면 안 늘어나는 게 실패로 보인다.
   const t = getTargets();
-  const goals = bodyTargets(w.latest, fat.latest, t.bodyFatPct);
   const startPct = bodyFatPercent(fat.first, w.first);
+  // 최종 목표까지 한 번에 재지 않는다. 다음 한 칸만 조준한다.
+  const aim = startPct !== null && pct !== null
+    ? bodyFatAim(startPct, pct, t.bodyFatPct, t.bodyFatStep) : null;
+  const goals = aim ? bodyTargets(w.latest, fat.latest, aim.aim) : null;
 
   // 측정은 결과고, 21시 이후 간식이 그 결과를 움직이는 레버다. 둘을 떼어
   // 놓으면 숫자만 보고 행동은 안 보인다.
@@ -834,18 +842,27 @@ function renderBodyCard() {
       <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
       ${goals ? `
         <div class="section-title" style="margin:14px 2px 4px">
-          목표 <span class="muted" style="font-weight:600">· 체지방률 ${t.bodyFatPct}%</span>
+          ${aim.done ? '목표 달성' : '지금 조준'}
+          <span class="muted" style="font-weight:600">· 체지방률 ${aim.aim}%${
+            aim.done ? '' : ` · 최종 ${t.bodyFatPct}%`}</span>
         </div>
-        ${gauge('체지방량', `${fat.latest}kg`, `목표 ${goals.fatKg}kg`,
-          goalProgress(fat.first, fat.latest, goals.fatKg))}
-        ${gauge('체중', `${w.latest}kg`, `목표 ${goals.weightKg}kg`,
-          goalProgress(w.first, w.latest, goals.weightKg))}
-        ${gauge('체지방률', `${pct}%`, `목표 ${t.bodyFatPct}%`,
-          goalProgress(startPct, pct, t.bodyFatPct))}
-        <p class="muted" style="margin:8px 0 0;font-size:11px">
-          제지방량 ${goals.leanKg}kg을 지킨다고 보고 역산한 값입니다. 목표 비율은 설정에서 바꿉니다.
-          골격근량에는 목표선을 긋지 않습니다 — 늘리는 게 아니라 안 줄이는 게 목표입니다.
-        </p>` : ''}
+        ${aim.done ? `
+          <div class="block ok">
+            <div class="muted">체지방률 ${t.bodyFatPct}% 목표에 닿았습니다.
+              더 내리고 싶으면 설정에서 최종 목표를 낮추세요.</div>
+          </div>` : `
+          ${gauge('체지방량', `${fat.latest}kg`, `다음 ${goals.fatKg}kg`,
+            goalProgress(fat.first, fat.latest, goals.fatKg))}
+          ${gauge('체중', `${w.latest}kg`, `다음 ${goals.weightKg}kg`,
+            goalProgress(w.first, w.latest, goals.weightKg))}
+          ${gauge('체지방률', `${pct}%`, `다음 ${aim.aim}%`,
+            goalProgress(aim.from, pct, aim.aim))}
+          <p class="muted" style="margin:8px 0 0;font-size:11px">
+            한 번에 ${t.bodyFatStep}%p씩 내려갑니다. ${aim.aim}%에 닿으면 다음 칸이 내려오고,
+            ${t.bodyFatPct}%에서 멈춥니다. 체지방량과 체중은 제지방량 ${goals.leanKg}kg을
+            지킨다고 보고 역산한 값입니다. 골격근량에는 목표선을 긋지 않습니다 —
+            늘리는 게 아니라 안 줄이는 게 목표입니다.
+          </p>`}` : ''}
       <div class="section-title" style="margin:14px 2px 6px">21시 이후 간식 없음</div>
       <div class="goalbar">
         ${mealDates.slice(-15).map((d) =>

@@ -658,6 +658,32 @@ export function goalProgress(start, current, target) {
 // 체지방률 목표 하나에서 체지방량과 체중을 끌어낸다. 넷을 따로 정하면
 // 서로 모순되는 목표가 나온다(체중 68인데 체지방량 18이면 26%다).
 // 제지방량은 지키는 값이라 고정하고 거기에 목표 비율을 붙인다.
+// 체지방률도 사다리로 간다. 25.4%에서 20%는 체지방 5kg이라 10~20주짜리고,
+// 게이지가 몇 주째 안 움직이면 그건 동기가 아니라 벽이다. 다음 한 칸만
+// 조준하고, 넘으면 다음 칸으로 내려간다.
+//
+// 칸은 시작값에 걸어둔다. 현재값에서 매번 빼면 조금 줄 때마다 목표도 같이
+// 내려가서 게이지가 영영 차지 않는다.
+export function bodyFatAim(startPct, currentPct, finalPct, stepPct) {
+  if (![startPct, currentPct, finalPct, stepPct].every((n) => Number.isFinite(n))) return null;
+  if (stepPct <= 0) return null;
+
+  if (currentPct <= finalPct) return { aim: round1(finalPct), from: round1(startPct), done: true };
+
+  let from = startPct;
+  // 시작이 이미 현재보다 아래면(다시 늘어난 경우) 현재를 출발선으로 본다
+  let rung = Math.max(startPct, currentPct);
+
+  for (let guard = 0; guard < 500; guard++) {
+    const next = Math.max(finalPct, rung - stepPct);
+    if (next < currentPct - 1e-9) return { aim: round1(next), from: round1(rung), done: false };
+    if (next <= finalPct) return { aim: round1(finalPct), from: round1(rung), done: false };
+    from = rung;
+    rung = next;
+  }
+  return { aim: round1(finalPct), from: round1(from), done: false };
+}
+
 export function bodyTargets(weightKg, fatMassKg, targetPct) {
   if (![weightKg, fatMassKg, targetPct].every((n) => Number.isFinite(n))) return null;
   if (targetPct <= 0 || targetPct >= 100) return null;
