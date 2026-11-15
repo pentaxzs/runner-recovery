@@ -642,6 +642,73 @@ export function advanceTimer(state, elapsedSec) {
   return { phase: 'rest', left: 0, ...carry, completedSet: true };
 }
 
+// ── 목표 ────────────────────────────────────────────────────
+// 시작에서 목표까지 얼마나 왔나. 줄여야 하는 값에 목표÷현재를 쓰면 아무
+// 뜻이 없다 — 18.6에서 13.6을 나눈 73%는 "73% 달성"이 아니다. 시작점이
+// 있어야 거리를 말할 수 있고, 늘리는 값과 줄이는 값이 같은 식으로 풀린다.
+export function goalProgress(start, current, target) {
+  const nums = [start, current, target];
+  if (!nums.every((n) => Number.isFinite(n))) return null;
+  const span = target - start;
+  if (span === 0) return null;
+  const moved = (current - start) / span;
+  return Math.min(1, Math.max(0, moved));
+}
+
+// 체지방률 목표 하나에서 체지방량과 체중을 끌어낸다. 넷을 따로 정하면
+// 서로 모순되는 목표가 나온다(체중 68인데 체지방량 18이면 26%다).
+// 제지방량은 지키는 값이라 고정하고 거기에 목표 비율을 붙인다.
+export function bodyTargets(weightKg, fatMassKg, targetPct) {
+  if (![weightKg, fatMassKg, targetPct].every((n) => Number.isFinite(n))) return null;
+  if (targetPct <= 0 || targetPct >= 100) return null;
+  const leanKg = weightKg - fatMassKg;
+  if (leanKg <= 0) return null;
+
+  const fatKg = round1((leanKg * targetPct) / (100 - targetPct));
+  return { leanKg: round1(leanKg), fatKg, weightKg: round1(round1(leanKg) + fatKg) };
+}
+
+// 습관은 항목마다 게이지를 달면 여섯 줄이 된다. 하루에 몇 개나 했는지를
+// 농도로 칠한 격자 하나로 퉁친다. 하루에 가능한 개수가 평일·주말마다
+// 다르므로 그 계산은 부르는 쪽이 하고, 여기서는 합과 단계만 낸다.
+export function habitSummary(days) {
+  const list = days || [];
+  const done = list.reduce((n, d) => n + (d.done || 0), 0);
+  const possible = list.reduce((n, d) => n + (d.possible || 0), 0);
+
+  const levels = list.map((d) => {
+    if (!d.possible || !d.done) return { date: d.date, level: 0 };
+    const r = d.done / d.possible;
+    // 하나라도 한 날은 안 한 날과 반드시 달라야 한다
+    const level = r >= 1 ? 4 : r > 0.66 ? 3 : r > 0.33 ? 2 : 1;
+    return { date: d.date, level };
+  });
+
+  return { done, possible, rate: possible ? done / possible : 0, levels };
+}
+
+export function monthDaysSoFar(todayStr) {
+  const end = parseLocalDate(todayStr);
+  const n = end.getDate();
+  return Array.from({ length: n }, (_, i) =>
+    toDateStr(new Date(end.getFullYear(), end.getMonth(), i + 1)));
+}
+
+// 월 목표는 계획한 요일이 그 달에 몇 번 오는지로 정한다. 4.3주를 곱하면
+// 31일인 달과 28일인 달이 같은 목표를 받는다.
+export function plannedRunDaysIn(todayStr, runDays) {
+  const end = parseLocalDate(todayStr);
+  const last = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+  const plan = runDays || [];
+  let n = 0;
+  for (let d = 1; d <= last; d++) {
+    const day = new Date(end.getFullYear(), end.getMonth(), d).getDay();
+    if (day === SATURDAY) continue;          // 토요일은 러닝을 비운다
+    if (day === SUNDAY_DOW || plan.includes(day)) n++;
+  }
+  return n;
+}
+
 // ── 체크 축하 ───────────────────────────────────────────────
 // 체크 하나하나가 같은 무게는 아니다. 마지막 하나를 남겨둔 순간이 제일 잘
 // 움직이는 지점이라 따로 센다.

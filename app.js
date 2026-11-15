@@ -16,6 +16,7 @@ import {
   dayStatus, lastNDays, longestStreak, weeklyRunGoal, cumulativeStats, bestPainFreeIn,
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
   cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow, daysSinceLastRun,
+  goalProgress, bodyTargets, habitSummary, monthDaysSoFar, plannedRunDaysIn,
   countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
@@ -28,8 +29,13 @@ const SATURDAY = 6;
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const COMMUTE_WALK_LABEL = '출퇴근 걷기 45분';
 
+// 목표 기본값. 체지방률 20%는 남성 적정 범위의 상한이고, 외부 기준이 있는
+// 유일한 값이라 여기 하나만 받아 체지방량과 체중을 역산한다.
+const DEFAULT_TARGETS = { bestKm: 2, stepAvg: 8000, bodyFatPct: 20 };
+
 const DEFAULT_SETTINGS = {
   painOnsetKm: 0, runLevel: 1, runDays: [2, 4], startedAt: null, pausedUntil: null,
+  targets: { ...DEFAULT_TARGETS },
 };
 const PAUSE_DAYS = 14;
 const LIGHT_FACTOR = 0.6; // "오늘은 가볍게" 세트 비율
@@ -310,6 +316,7 @@ const SHORTCUT_URL = 'https://runner-recovery.vercel.app/?steps=[걸음수]&date
 
 function openSettings() {
   const settings = getSettings();
+  const t = getTargets();
   let days = [...(settings.runDays || [])];
   let level = settings.runLevel;
 
@@ -326,6 +333,20 @@ function openSettings() {
         <div class="bt">연속 이틀은 피해주세요</div>
         <div class="muted">러닝 사이에는 하루를 비웁니다.</div>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>목표</h3>
+      <p class="muted" style="margin:4px 0 10px">주간 리포트와 체성분 게이지의 기준입니다.</p>
+      <label class="field"><span>통증 없이 뛸 거리 (km)</span>
+        <input type="number" id="stBestKm" step="0.1" min="0.5" max="42" value="${t.bestKm}"></label>
+      <label class="field"><span>걸음 수 일평균 (보)</span>
+        <input type="number" id="stStepAvg" step="500" min="1000" max="${MAX_STEPS}" value="${t.stepAvg}"></label>
+      <label class="field" style="margin-bottom:0"><span>체지방률 (%)</span>
+        <input type="number" id="stFatPct" step="0.5" min="5" max="40" value="${t.bodyFatPct}"></label>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">
+        체지방량과 체중 목표는 이 비율에서 역산합니다. 남성 적정 범위의 상한이 20%입니다.
+      </p>
     </div>
 
     <div class="card">
@@ -421,7 +442,20 @@ function openSettings() {
 
     modal.querySelector('#stClose').addEventListener('click', closeModal);
     saveBtn.addEventListener('click', () => {
-      store.set('settings', { ...getSettings(), runDays: days, runLevel: level });
+      const num = (id, lo, hi, fallback) => {
+        const v = Number(modal.querySelector(id).value);
+        return Number.isFinite(v) && v >= lo && v <= hi ? v : fallback;
+      };
+      store.set('settings', {
+        ...getSettings(),
+        runDays: days,
+        runLevel: level,
+        targets: {
+          bestKm: num('#stBestKm', 0.5, 42, t.bestKm),
+          stepAvg: Math.round(num('#stStepAvg', 1000, MAX_STEPS, t.stepAvg)),
+          bodyFatPct: num('#stFatPct', 5, 40, t.bodyFatPct),
+        },
+      });
       closeModal();
       renderToday();
       renderGuide(); // 단계가 바뀌면 처방도 같이 바뀐다
@@ -551,12 +585,34 @@ function renderSummary() {
 // ── 누적 ────────────────────────────────────────────────────
 // 매일 볼 숫자는 아니라서 접어둔다.
 function renderCumulative() {
-  const cum = cumulativeStats(getSessions(), getSteps());
-  if (!cum.runCount && !cum.hasSteps && !Object.keys(cum.activities).length) return '';
+  const today = todayStr();
+  const settings = getSettings();
+  const month = monthDaysSoFar(today);
+  const from = month[0];
+
+  // 이번 달만 본다. "누적"이 시작 이후 전체인지 이번 달인지 알 수 없었다.
+  const monthSessions = getSessions().filter((s) => s.date >= from && s.date <= today);
+  const monthSteps = Object.fromEntries(
+    Object.entries(getSteps()).filter(([d]) => d >= from && d <= today));
+  const cum = cumulativeStats(monthSessions, monthSteps);
+  const all = cumulativeStats(getSessions(), getSteps());
+
+  // 월 목표는 계획한 요일이 이 달에 몇 번 오는지로 정한다
+  const plannedDays = plannedRunDaysIn(today, settings.runDays);
+  const targetKm = Math.round(ladderAt(settings.runLevel).approxKm * plannedDays * 10) / 10;
+
+  if (!all.runCount && !all.hasSteps && !Object.keys(all.activities).length) return '';
+  const label = `${parseLocalDate(today).getMonth() + 1}월`;
   return `
     <details class="collapse">
-      <summary>누적</summary>
+      <summary>${label} 누적</summary>
       <div class="body">
+        ${gauge('러닝 거리', `${cum.runKm}km`, `목표 ${targetKm}km`,
+          goalProgress(0, cum.runKm, targetKm))}
+        <p class="muted" style="margin:6px 0 12px;font-size:11px">
+          목표는 Lv${settings.runLevel}의 ${ladderAt(settings.runLevel).approxKm}km를
+          이 달에 계획된 ${plannedDays}번 뛰었을 때입니다.
+        </p>
         <div class="kv"><span class="k">러닝</span><span class="v">${cum.runKm}km · ${cum.runCount}회</span></div>
         ${cum.hasSteps
           ? `<div class="kv"><span class="k">걷기 (추정)</span><span class="v">약 ${cum.walkKm}km</span></div>
@@ -568,6 +624,11 @@ function renderCumulative() {
             }</span></div>`
           : ''}
         ${cum.hasSteps ? '<p class="muted" style="margin:8px 0 0;font-size:11px">걷기 거리는 보폭 0.7m 가정 추정치입니다.</p>' : ''}
+        <div class="section-title" style="margin:14px 2px 6px">시작 이후 전체</div>
+        <div class="kv"><span class="k">러닝</span><span class="v">${all.runKm}km · ${all.runCount}회</span></div>
+        ${all.hasSteps
+          ? `<div class="kv"><span class="k">걸음 수</span><span class="v">${all.stepTotal.toLocaleString('ko-KR')}보</span></div>`
+          : ''}
       </div>
     </details>`;
 }
@@ -632,6 +693,7 @@ function renderWeeklyReport() {
   if (!r.hasData) return '';
 
   const settings = getSettings();
+  const t = getTargets();
   // nextLevel()은 러닝 저장 시 이미 적용됐다. 여기서 다시 부르면 같은 승급을 두 번 센다.
   const hint = nextStepHint(settings.runLevel, getSessions().filter((s) => s.type === 'run'), RUN_LADDER.length);
   const arrow = r.delta > 0 ? '▲' : r.delta < 0 ? '▼' : '–';
@@ -639,14 +701,19 @@ function renderWeeklyReport() {
   return `
     <div class="card">
       <h2>${win.isLastWeek ? '지난주' : '이번 주'} 리포트</h2>
-      <div class="kv">
-        <span class="k">필수 달성</span>
-        <span class="v">${r.essentialDone} / ${r.essentialTarget}일${
-          r.satDone ? '<span class="muted" style="font-weight:600"> · 토요일도</span>' : ''}</span>
-      </div>
-      <div class="kv"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
-      <div class="kv"><span class="k">통증 없이 뛴 최고 거리</span><span class="v">${r.bestPainFreeKm}km ${arrow} ${Math.abs(r.delta)}</span></div>
-      <div class="kv"><span class="k">걸음 수 일평균</span><span class="v">${r.avgSteps.toLocaleString('ko-KR')}보</span></div>
+      ${gauge('필수 달성',
+        `${r.essentialDone}/${r.essentialTarget}일${r.satDone ? ' +토' : ''}`,
+        '목표 6일',
+        goalProgress(0, r.essentialDone, r.essentialTarget))}
+      ${gauge('통증 없이 뛴 최고 거리',
+        `${r.bestPainFreeKm}km ${arrow}${Math.abs(r.delta)}`,
+        `목표 ${t.bestKm}km`,
+        goalProgress(0, r.bestPainFreeKm, t.bestKm))}
+      ${gauge('걸음 수 일평균',
+        `${r.avgSteps.toLocaleString('ko-KR')}보`,
+        `목표 ${t.stepAvg.toLocaleString('ko-KR')}보`,
+        goalProgress(0, r.avgSteps, t.stepAvg))}
+      <div class="kv" style="margin-top:12px"><span class="k">러닝</span><span class="v">${r.runCount}회 · ${r.totalKm}km</span></div>
       ${(() => {
         const wt = metricTrend(getWeights(), todayStr(), 7);
         return wt.count >= 2
@@ -726,6 +793,13 @@ function renderBodyCard() {
   const note = bodyNote(bodyVerdict(fat, muscle), fat, muscle);
   const pct = bodyFatPercent(fat.latest, w.latest);
 
+  // 체지방률 목표 하나에서 체지방량과 체중을 역산한다. 골격근량은 게이지를
+  // 달지 않는다 — 회복 프로그램에서 근육을 늘리는 건 목표가 아니고 줄지
+  // 않는 게 성공이라, 목표선을 그으면 안 늘어나는 게 실패로 보인다.
+  const t = getTargets();
+  const goals = bodyTargets(w.latest, fat.latest, t.bodyFatPct);
+  const startPct = bodyFatPercent(fat.first, w.first);
+
   // 측정은 결과고, 21시 이후 간식이 그 결과를 움직이는 레버다. 둘을 떼어
   // 놓으면 숫자만 보고 행동은 안 보인다.
   const settings = getSettings();
@@ -751,8 +825,23 @@ function renderBodyCard() {
           ? `<div class="kv"><span class="k">체지방률 <span class="muted">· 계산값</span></span><span class="v">${pct}%</span></div>`
           : ''}
       </div>
+
       <div class="block ${note.tone}"><div class="muted">${note.text}</div></div>
       <p class="muted" style="margin:8px 0 0;font-size:11px">변화량은 모두 첫 측정 대비입니다.</p>
+      ${goals ? `
+        <div class="section-title" style="margin:14px 2px 4px">
+          목표 <span class="muted" style="font-weight:600">· 체지방률 ${t.bodyFatPct}%</span>
+        </div>
+        ${gauge('체지방량', `${fat.latest}kg`, `목표 ${goals.fatKg}kg`,
+          goalProgress(fat.first, fat.latest, goals.fatKg))}
+        ${gauge('체중', `${w.latest}kg`, `목표 ${goals.weightKg}kg`,
+          goalProgress(w.first, w.latest, goals.weightKg))}
+        ${gauge('체지방률', `${pct}%`, `목표 ${t.bodyFatPct}%`,
+          goalProgress(startPct, pct, t.bodyFatPct))}
+        <p class="muted" style="margin:8px 0 0;font-size:11px">
+          제지방량 ${goals.leanKg}kg을 지킨다고 보고 역산한 값입니다. 목표 비율은 설정에서 바꿉니다.
+          골격근량에는 목표선을 긋지 않습니다 — 늘리는 게 아니라 안 줄이는 게 목표입니다.
+        </p>` : ''}
       <div class="section-title" style="margin:14px 2px 6px">21시 이후 간식 없음</div>
       <div class="goalbar">
         ${mealDates.slice(-15).map((d) =>
@@ -967,13 +1056,37 @@ function renderHabitCard() {
   const nothing = mealRows.every((r) => r.done === 0)
     && missionCount === 0 && extraDays === 0 && essentialDays === 0;
 
+  // 하루에 가능한 체크 수. 추가 운동 여덟 개는 분모에서 뺀다 — 매일 여덟 개를
+  // 다 하는 사람은 없고, 넣으면 실행률이 영영 바닥에 붙는다.
+  const perDay = dates.map((d) => {
+    const list = checks[d] || [];
+    const meals = mealChecksFor(d, MEAL_CHECKS_WEEKDAY, MEAL_CHECKS_WEEKEND).map((m) => m.id);
+    const missions = pickMissions(MICRO_MISSIONS, d, 3).map((m) => m.id);
+    const ids = [...ESSENTIAL_IDS, ...meals, ...missions];
+    return { date: d, done: ids.filter((id) => list.includes(id)).length, possible: ids.length };
+  });
+  const heat = habitSummary(perDay);
+
   return `
     <div class="card">
-      <h3>습관 <span class="muted" style="font-weight:600">· 최근 ${dates.length}일</span></h3>
+      <div class="todo-head">
+        <h3>습관 <span class="muted" style="font-weight:600">· 최근 ${dates.length}일</span></h3>
+        <span class="todo-count">${Math.round(heat.rate * 100)}%</span>
+      </div>
+      ${nothing ? '' : `
+        <div class="heat">
+          ${heat.levels.map((l) => `<i class="h${l.level}" title="${escapeHtml(l.date)}"></i>`).join('')}
+        </div>
+        <div class="heat-legend">
+          <span>적음</span>
+          <i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i>
+          <span>많음</span>
+          <span style="margin-left:auto">${heat.done}/${heat.possible}개</span>
+        </div>`}
       ${nothing ? `
         <div class="empty" style="padding:14px">아직 기록이 없습니다.<br>
           오늘 탭에서 식사와 자투리를 체크하면 여기에 쌓입니다.</div>` : `
-        <div style="margin-top:8px">
+        <div style="margin-top:14px">
           <div class="kv">
             <span class="k">필수 운동 <span class="muted" style="font-weight:600">· 둘 다</span></span>
             <span class="v">${essentialDays}<span class="muted" style="font-weight:600">/${dates.length}일</span></span>
@@ -993,8 +1106,8 @@ function renderHabitCard() {
           </div>
         </div>
         <p class="muted" style="margin:8px 0 0;font-size:11px">
-          식사는 그날 제시된 날만 셉니다 — 아침·점심은 평일, 저녁 과식은 주말입니다.
-          21시 이후 간식은 체성분 카드에 있습니다.
+          실행률은 필수·식사·자투리로 셉니다. 추가 운동은 보너스라 분모에서 뺐습니다.
+          식사는 그날 제시된 날만 셉니다. 21시 이후 간식은 체성분 카드에 있습니다.
         </p>`}
     </div>`;
 }
@@ -2212,6 +2325,22 @@ function showCheer(stage, dateStr, done) {
   el.classList.add('up');
   cheerTimer = setTimeout(hideCheer, ms);
 }
+
+// 목표 막대 한 줄. p는 0~1, 넘겨도 100%에서 멈춘다.
+function gauge(label, valueText, targetText, p) {
+  const pct = p === null ? 0 : Math.round(p * 100);
+  return `
+    <div class="gauge${p !== null && p >= 1 ? ' done' : ''}">
+      <div class="gauge-head">
+        <span class="gk">${escapeHtml(label)}</span>
+        <span class="gt">${escapeHtml(targetText)}</span>
+        <span class="gv">${escapeHtml(valueText)}${p === null ? '' : ` · ${pct}%`}</span>
+      </div>
+      <div class="gauge-bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+}
+
+const getTargets = () => ({ ...DEFAULT_TARGETS, ...(getSettings().targets || {}) });
 
 function openModal(html, wire, opts = {}) {
   const root = document.getElementById('modal-root');

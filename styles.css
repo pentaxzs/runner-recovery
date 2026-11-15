@@ -1236,3 +1236,57 @@ body.modal-open {
 .run-optional { margin: 12px 0 4px; }
 .run-optional > summary { color: var(--muted); font-weight: 700; }
 .run-optional .run-block { margin-top: 0; }
+
+/* ── 목표 게이지 ────────────────────────────────────── */
+/* 숫자 옆에 막대를 붙여 "얼마나 왔나"를 한눈에 보여준다. 목표를 넘겨도
+   막대는 100%에서 멈춘다 — 120%짜리 막대는 읽을 수 없다. */
+.gauge { margin: 10px 0 0; }
+.gauge-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.gauge-head .gk { font-weight: 700; }
+.gauge-head .gv { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gauge-head .gt { color: var(--muted); font-size: 12px; font-weight: 700; }
+.gauge-bar {
+  height: 8px;
+  margin-top: 5px;
+  background: var(--border);
+  overflow: hidden;
+}
+.gauge-bar i {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+}
+.gauge.done .gauge-bar i { background: var(--ok); }
+.gauge.done .gauge-head .gv { color: var(--ok); }
+
+/* ── 습관 히트맵 ────────────────────────────────────── */
+/* 항목마다 게이지를 달면 여섯 줄이 된다. 하루에 몇 개 했는지를 농도로. */
+.heat {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 3px;
+  margin-top: 10px;
+}
+.heat i {
+  aspect-ratio: 1;
+  background: var(--border);
+  border-radius: 0;
+}
+.heat i.h1 { background: color-mix(in srgb, var(--brand) 25%, var(--border)); }
+.heat i.h2 { background: color-mix(in srgb, var(--brand) 50%, var(--border)); }
+.heat i.h3 { background: color-mix(in srgb, var(--brand) 75%, var(--border)); }
+.heat i.h4 { background: var(--brand); }
+.heat-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.heat-legend i { width: 11px; height: 11px; background: var(--border); }
