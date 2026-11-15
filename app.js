@@ -861,13 +861,25 @@ function renderBodyCard() {
           ${gauge('체지방량', `${fat.latest}kg`,
             `다음 ${goals.fatKg}kg · ${gapText(fat.latest, goals.fatKg, 'kg')}`,
             onlyOnce ? null : goalProgress(base.a, fat.latest, goals.fatKg),
-            onlyOnce ? '두 번째 측정부터 진행이 채워집니다.' : '')}
+            onlyOnce ? `${base ? fmtDate(base.date) : ''} 한 번만 쟀습니다. 다음 측정부터 채워집니다.`
+              : backslidNote(base.a, fat.latest, goals.fatKg, 'kg'))}
           ${gauge('체중', `${w.latest}kg`,
             `다음 ${goals.weightKg}kg · ${gapText(w.latest, goals.weightKg, 'kg')}`,
-            onlyOnce ? null : goalProgress(base.b, w.latest, goals.weightKg))}
+            onlyOnce ? null : goalProgress(base.b, w.latest, goals.weightKg),
+            onlyOnce ? '' : backslidNote(base.b, w.latest, goals.weightKg, 'kg'))}
           ${gauge('체지방률', `${pct}%`,
             `다음 ${aim.aim}% · ${gapText(pct, aim.aim, '%p')}`,
-            onlyOnce ? null : goalProgress(aim.from, pct, aim.aim))}
+            onlyOnce ? null : goalProgress(aim.from, pct, aim.aim),
+            onlyOnce ? ''
+              // 늘었으면 사다리가 지금 값에서 칸을 다시 잡는다. 그래야 다음
+              // 칸이 닿을 거리에 남는다. 다만 조용히 바꾸면 모른다.
+              : Number.isFinite(startPct) && pct > startPct
+                ? `시작 ${startPct}%보다 ${Math.round((pct - startPct) * 10) / 10}%p 늘어, 지금 값에서 칸을 다시 잡았습니다.`
+                : backslidNote(aim.from, pct, aim.aim, '%p'))}
+          <p class="muted" style="margin:6px 0 0;font-size:11px">
+            시작 ${base ? fmtDate(base.date) : ''} · 체지방량 ${base ? base.a : '–'}kg ·
+            체중 ${base ? base.b : '–'}kg · 체지방률 ${startPct ?? '–'}% · 기록 ${fat.count}회
+          </p>
           <p class="muted" style="margin:8px 0 0;font-size:11px">
             한 번에 ${t.bodyFatStep}%p씩 내려갑니다. ${aim.aim}%에 닿으면 다음 칸이 내려오고,
             ${t.bodyFatPct}%에서 멈춥니다. 체지방량과 체중은 제지방량 ${goals.leanKg}kg을
@@ -2376,6 +2388,17 @@ function gauge(label, valueText, targetText, p, note) {
       ${note ? `<div class="gauge-note">${escapeHtml(note)}</div>` : ''}
     </div>`;
 }
+
+// 시작보다 뒤로 간 경우. 진행률은 0으로 바닥에 붙는데, 그러면 "아직 안 쟀음"과
+// 화면에서 구분되지 않는다. 0이 된 이유를 적어준다.
+const backslidNote = (start, current, target, unit) => {
+  if (![start, current, target].every((n) => Number.isFinite(n))) return '';
+  const wantDown = target < start;
+  const moved = current - start;
+  if (wantDown ? moved <= 0 : moved >= 0) return '';
+  const d = Math.round(Math.abs(moved) * 10) / 10;
+  return `시작보다 ${d}${unit} ${wantDown ? '늘었습니다' : '줄었습니다'}. 게이지는 시작을 넘어서면 찹니다.`;
+};
 
 // 목표까지 얼마나 남았나. 진행률을 못 내는 상황에서도 이 숫자는 낼 수 있다.
 const gapText = (current, target, unit) => {
