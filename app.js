@@ -17,6 +17,7 @@ import {
   countCheckDays, bodyFatPercent, bodyVerdict, BODY_NOISE_KG,
   cheerStage, pickCheer, cheersAt, advanceTimer, MAX_STEPS, reportWindow, daysSinceLastRun,
   goalProgress, bodyTargets, bodyFatAim, habitSummary, monthDaysSoFar, plannedRunDaysIn,
+  firstPaired,
   countChecks, countAnyCheckDays,
   escapeHtml,
 } from './logic.js';
@@ -806,7 +807,13 @@ function renderBodyCard() {
   // 달지 않는다 — 회복 프로그램에서 근육을 늘리는 건 목표가 아니고 줄지
   // 않는 게 성공이라, 목표선을 그으면 안 늘어나는 게 실패로 보인다.
   const t = getTargets();
-  const startPct = bodyFatPercent(fat.first, w.first);
+  // 시작 체지방률은 체지방량과 체중이 둘 다 있는 가장 이른 날에서 낸다.
+  // 두 계열의 first를 그냥 나누면 11월 지방을 9월 체중으로 나눌 수 있다.
+  const base = firstPaired(getFatMass(), getWeights());
+  const startPct = base ? bodyFatPercent(base.a, base.b) : null;
+  // 한 번만 재면 시작이 곧 현재라 진행을 낼 수 없다. 0%짜리 막대를 그리면
+  // 아무것도 안 한 것처럼 보이므로, 남은 거리만 적고 이유를 밝힌다.
+  const onlyOnce = fat.count < 2 || w.count < 2;
   // 최종 목표까지 한 번에 재지 않는다. 다음 한 칸만 조준한다.
   const aim = startPct !== null && pct !== null
     ? bodyFatAim(startPct, pct, t.bodyFatPct, t.bodyFatStep) : null;
@@ -851,12 +858,16 @@ function renderBodyCard() {
             <div class="muted">체지방률 ${t.bodyFatPct}% 목표에 닿았습니다.
               더 내리고 싶으면 설정에서 최종 목표를 낮추세요.</div>
           </div>` : `
-          ${gauge('체지방량', `${fat.latest}kg`, `다음 ${goals.fatKg}kg`,
-            goalProgress(fat.first, fat.latest, goals.fatKg))}
-          ${gauge('체중', `${w.latest}kg`, `다음 ${goals.weightKg}kg`,
-            goalProgress(w.first, w.latest, goals.weightKg))}
-          ${gauge('체지방률', `${pct}%`, `다음 ${aim.aim}%`,
-            goalProgress(aim.from, pct, aim.aim))}
+          ${gauge('체지방량', `${fat.latest}kg`,
+            `다음 ${goals.fatKg}kg · ${gapText(fat.latest, goals.fatKg, 'kg')}`,
+            onlyOnce ? null : goalProgress(base.a, fat.latest, goals.fatKg),
+            onlyOnce ? '두 번째 측정부터 진행이 채워집니다.' : '')}
+          ${gauge('체중', `${w.latest}kg`,
+            `다음 ${goals.weightKg}kg · ${gapText(w.latest, goals.weightKg, 'kg')}`,
+            onlyOnce ? null : goalProgress(base.b, w.latest, goals.weightKg))}
+          ${gauge('체지방률', `${pct}%`,
+            `다음 ${aim.aim}% · ${gapText(pct, aim.aim, '%p')}`,
+            onlyOnce ? null : goalProgress(aim.from, pct, aim.aim))}
           <p class="muted" style="margin:8px 0 0;font-size:11px">
             한 번에 ${t.bodyFatStep}%p씩 내려갑니다. ${aim.aim}%에 닿으면 다음 칸이 내려오고,
             ${t.bodyFatPct}%에서 멈춥니다. 체지방량과 체중은 제지방량 ${goals.leanKg}kg을
@@ -2347,19 +2358,31 @@ function showCheer(stage, dateStr, done) {
   cheerTimer = setTimeout(hideCheer, ms);
 }
 
-// 목표 막대 한 줄. p는 0~1, 넘겨도 100%에서 멈춘다.
-function gauge(label, valueText, targetText, p) {
-  const pct = p === null ? 0 : Math.round(p * 100);
+// 목표 막대 한 줄. p는 0~1, 넘겨도 100%에서 멈춘다. p가 null이면 아직 잴 수
+// 없다는 뜻이라 퍼센트를 지어내지 않고 note로 이유를 적는다.
+function gauge(label, valueText, targetText, p, note) {
+  const known = p !== null && p !== undefined;
+  const pct = known ? Math.round(p * 100) : 0;
+  const cls = !known ? '' : p >= 1 ? ' done' : p >= 0.5 ? ' half' : '';
   return `
-    <div class="gauge${p !== null && p >= 1 ? ' done' : ''}">
+    <div class="gauge${cls}">
       <div class="gauge-head">
         <span class="gk">${escapeHtml(label)}</span>
         <span class="gt">${escapeHtml(targetText)}</span>
-        <span class="gv">${escapeHtml(valueText)}${p === null ? '' : ` · ${pct}%`}</span>
+        <span class="gv">${escapeHtml(valueText)}${known ? ` · ${pct}%` : ''}${
+          known && p >= 1 ? '<span class="spark-mark">🎉</span>' : ''}</span>
       </div>
       <div class="gauge-bar"><i style="width:${pct}%"></i></div>
+      ${note ? `<div class="gauge-note">${escapeHtml(note)}</div>` : ''}
     </div>`;
 }
+
+// 목표까지 얼마나 남았나. 진행률을 못 내는 상황에서도 이 숫자는 낼 수 있다.
+const gapText = (current, target, unit) => {
+  if (![current, target].every((n) => Number.isFinite(n))) return '';
+  const gap = Math.round(Math.abs(current - target) * 10) / 10;
+  return gap === 0 ? '도달' : `${gap}${unit} 남음`;
+};
 
 const getTargets = () => ({ ...DEFAULT_TARGETS, ...(getSettings().targets || {}) });
 

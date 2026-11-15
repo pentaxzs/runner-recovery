@@ -664,6 +664,20 @@ export function goalProgress(start, current, target) {
 //
 // 칸은 시작값에 걸어둔다. 현재값에서 매번 빼면 조금 줄 때마다 목표도 같이
 // 내려가서 게이지가 영영 차지 않는다.
+// 체성분은 세 칸이 각각 선택 입력이라 체중만 적은 날이 생긴다. 두 계열의
+// 첫 기록을 그냥 나누면 11월 지방을 9월 체중으로 나누게 된다. 둘 다 있는
+// 가장 이른 날을 짝으로 쓴다.
+export function firstPaired(a, b) {
+  const left = a || {};
+  const right = b || {};
+  const dates = Object.keys(left)
+    .filter((d) => Number.isFinite(left[d]) && Number.isFinite(right[d]))
+    .sort();
+  if (dates.length === 0) return null;
+  const date = dates[0];
+  return { date, a: left[date], b: right[date] };
+}
+
 export function bodyFatAim(startPct, currentPct, finalPct, stepPct) {
   if (![startPct, currentPct, finalPct, stepPct].every((n) => Number.isFinite(n))) return null;
   if (stepPct <= 0) return null;
